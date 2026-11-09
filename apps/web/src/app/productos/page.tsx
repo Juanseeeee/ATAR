@@ -4,10 +4,12 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import CompanyLogo from '@/components/dashboard/company-logo';
+import { useRegion } from '@/components/region/region-provider';
+import SupplierShowcaseCard from '@/components/marketing/supplier-showcase-card';
+import { HeroLead, HeroSearch, HeroSuggestions, HeroTitle } from '@/components/marketing/page-hero';
 import Reveal from '@/components/ui/reveal';
 import { atarApi, type RequestCatalogCategoryRecord, type SupplierDirectoryRecord } from '@/lib/atar-api';
-import { getSupplierCategoryLabel } from '@/lib/provider-directory';
+import { categorySearchTerms } from '@/lib/regional-terms';
 
 type ProductCategory = {
   id: string;
@@ -108,10 +110,6 @@ const FALLBACK_CATEGORIES: ProductCategory[] = [
 
 const MOST_SEARCHED = ['Big Bags', 'Polímeros', 'Maquinarias', 'Bolsas', 'Tintas'];
 
-const HERO_IMAGES = ['/bigbags.png', '/cuerdas.png', '/tintas.png', '/hilomulti.png'];
-
-/* Iconos ------------------------------------------------------------------ */
-
 /* Iconos ------------------------------------------------------------------ */
 
 function CubeIcon({ className = 'h-5 w-5' }: { className?: string }) {
@@ -148,14 +146,6 @@ function TrendingIcon({ className = 'h-5 w-5' }: { className?: string }) {
   );
 }
 
-function SearchIcon({ className = 'h-5 w-5' }: { className?: string }) {
-  return (
-    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
-      <path d="M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
-
 function ArrowIcon({ className = 'h-4 w-4' }: { className?: string }) {
   return (
     <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
@@ -166,14 +156,12 @@ function ArrowIcon({ className = 'h-4 w-4' }: { className?: string }) {
 
 /* Familias de productos ---------------------------------------------------- */
 
-type FamilyIconName = 'bag' | 'fabric' | 'spool' | 'molecule' | 'drop' | 'gear';
 
 type ProductFamily = {
   id: string;
   title: string;
   /** Nombre corto de la familia. */
   tab: string;
-  icon: FamilyIconName;
   image: string;
   /** Cada ítem abre una solicitud con esa categoría del catálogo preseleccionada. */
   items: { label: string; category: string }[];
@@ -186,7 +174,6 @@ const ALL_FAMILIES: ProductFamily[] = [
     id: 'envases',
     title: 'Envases y embalajes',
     tab: 'Big Bags y sacos',
-    icon: 'bag',
     image: '/bigbags.png',
     items: [
       { label: 'Big Bags', category: 'Big Bags' },
@@ -199,7 +186,6 @@ const ALL_FAMILIES: ProductFamily[] = [
     id: 'telas',
     title: 'Telas y tejidos',
     tab: 'Telas',
-    icon: 'fabric',
     image: '/telaplana.png',
     items: [
       { label: 'Rafia', category: 'Rollos y Telas' },
@@ -213,7 +199,6 @@ const ALL_FAMILIES: ProductFamily[] = [
     id: 'hilos',
     title: 'Hilos y cordones',
     tab: 'Hilos',
-    icon: 'spool',
     image: '/hilomulti.png',
     items: [
       { label: 'Hilo multifilamento PP', category: 'Hilo multifilamento de PP' },
@@ -227,7 +212,6 @@ const ALL_FAMILIES: ProductFamily[] = [
     id: 'materias',
     title: 'Polímeros',
     tab: 'Polímeros',
-    icon: 'molecule',
     image: '/polimero.png',
     items: [
       { label: 'Polipropileno', category: 'Polipropileno' },
@@ -239,7 +223,6 @@ const ALL_FAMILIES: ProductFamily[] = [
     id: 'impresion',
     title: 'Impresión y terminación',
     tab: 'Tintas y cintas',
-    icon: 'drop',
     image: '/tintas.png',
     items: [
       { label: 'Tintas', category: 'Tintas' },
@@ -252,7 +235,6 @@ const ALL_FAMILIES: ProductFamily[] = [
     id: 'maquinaria',
     title: 'Maquinaria',
     tab: 'Maquinaria',
-    icon: 'gear',
     image: '/maquinariaweb.png',
     items: [
       { label: 'Equipos', category: 'Maquinarias' },
@@ -277,74 +259,10 @@ function familyMatches(family: ProductFamily, query: string) {
   if (!needle) {
     return true;
   }
-  return normalize([family.title, ...family.items.map((item) => item.label), ...family.keywords].join(' ')).includes(needle);
-}
-
-/** Solicitud nueva, con la categoría del catálogo preseleccionada si se conoce. */
-function newRequestHref(category?: string) {
-  return `/dashboard/comprador/solicitudes/nueva${category ? `?category=${encodeURIComponent(category)}` : ''}`;
-}
-
-function FamilyIcon({ name, className = 'h-6 w-6' }: { name: FamilyIconName; className?: string }) {
-  const s = { stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' };
-  const paths: Record<FamilyIconName, React.ReactNode> = {
-    bag: (
-      <>
-        <path d="M5 8h14l-1 13H6L5 8z" {...s} />
-        <path d="M9 8V6a3 3 0 016 0v2" {...s} />
-      </>
-    ),
-    fabric: (
-      <>
-        <circle cx="9" cy="12" r="6" {...s} />
-        <circle cx="9" cy="12" r="2" {...s} />
-        <path d="M9 6h9a3 3 0 013 3v6a3 3 0 01-3 3H9" {...s} />
-      </>
-    ),
-    spool: (
-      <>
-        <path d="M6 3h12M6 21h12M8 3v18M16 3v18" {...s} />
-        <path d="M8 7h8M8 11h8M8 15h8" {...s} />
-      </>
-    ),
-    molecule: (
-      <>
-        <circle cx="12" cy="5" r="2.2" {...s} />
-        <circle cx="5.5" cy="17" r="2.2" {...s} />
-        <circle cx="18.5" cy="17" r="2.2" {...s} />
-        <path d="M11 7l-4.5 8M13 7l4.5 8M7.7 17h8.6" {...s} />
-      </>
-    ),
-    drop: <path d="M12 3s6 6.5 6 11a6 6 0 01-12 0c0-4.5 6-11 6-11z" {...s} />,
-    gear: (
-      <>
-        <circle cx="12" cy="12" r="3" {...s} />
-        <path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 01-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 010-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 014 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 010 4h-.1a1.7 1.7 0 00-1.5 1z" {...s} />
-      </>
-    ),
-  };
-  return (
-    <svg aria-hidden="true" className={className} viewBox="0 0 24 24">
-      {paths[name]}
-    </svg>
-  );
-}
-
-function VerifiedIcon() {
-  return (
-    <svg aria-label="Proveedor verificado" className="h-4 w-4 shrink-0 text-[#1f5bff]" role="img" viewBox="0 0 24 24">
-      <path d="M12 2l2.4 1.8 3-.2.9 2.9 2.5 1.7-1 2.8 1 2.8-2.5 1.7-.9 2.9-3-.2L12 22l-2.4-1.8-3 .2-.9-2.9-2.5-1.7 1-2.8-1-2.8 2.5-1.7.9-2.9 3 .2L12 2z" fill="currentColor" />
-      <path d="M8.5 12.2l2.3 2.3 4.7-4.7" fill="none" stroke="#fff" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-    </svg>
-  );
-}
-
-function ExternalIcon({ className = 'h-4 w-4' }: { className?: string }) {
-  return (
-    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
-      <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-    </svg>
-  );
+  // Suma los nombres de cada país (maxisaco, costal, hilaza…) para que también encuentren la familia.
+  return normalize(
+    [family.title, ...family.items.flatMap((item) => [item.label, ...categorySearchTerms(item.category)]), ...family.keywords].join(' '),
+  ).includes(needle);
 }
 
 // globals.css fija `a { color: inherit }` fuera de las capas de Tailwind: en
@@ -363,6 +281,11 @@ export default function ProductosPage() {
       <ProductosWithQuery />
     </Suspense>
   );
+}
+
+/** Solicitud nueva, con la categoría del catálogo preseleccionada si se conoce. */
+function newRequestHref(category?: string) {
+  return `/dashboard/comprador/solicitudes/nueva${category ? `?category=${encodeURIComponent(category)}` : ''}`;
 }
 
 function ProductosWithQuery() {
@@ -419,7 +342,10 @@ function ProductosContent({ initialQuery }: { initialQuery: string }) {
   const featuredSuppliers = suppliers.slice(0, 5);
 
   const supplierLabel = supplierCount === null ? '1200+' : `${supplierCount}+`;
-  const supplierBadge = supplierCount === null ? '+1200' : `+${supplierCount}`;
+
+  function scrollToFamilies() {
+    document.getElementById('familias')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   function showAllFamilies() {
     setSearch('');
@@ -429,92 +355,42 @@ function ProductosContent({ initialQuery }: { initialQuery: string }) {
     <main className="min-h-screen bg-white text-slate-950">
       {/* ==================== HERO ==================== */}
       <section className="relative isolate overflow-hidden bg-[#070b17] text-white">
-        <Image alt="" className="animate-hero-zoom object-cover object-center" fill priority sizes="100vw" src="/hero-industria.png" />
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,#070b17_0%,rgba(7,11,23,0.94)_38%,rgba(7,11,23,0.78)_70%,rgba(7,11,23,0.6)_100%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(7,11,23,0.75)_0%,transparent_35%)]" />
+        {/* La imagen ya trae el lado izquierdo oscuro para el texto y los productos a la derecha. */}
+        <Image alt="" className="animate-hero-zoom object-cover object-[70%_center]" fill priority sizes="100vw" src="/hero-productos-atar.png" />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,11,23,0.95)_0%,rgba(7,11,23,0.82)_42%,rgba(7,11,23,0.4)_64%,transparent_85%)] 2xl:bg-[linear-gradient(90deg,rgba(7,11,23,0.85)_0%,rgba(7,11,23,0.5)_38%,transparent_62%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(7,11,23,0.8)_0%,transparent_30%)]" />
+        <div className="absolute inset-0 bg-[#070b17]/55 lg:hidden" />
 
-        <div className="relative z-10 mx-auto w-full max-w-[1440px] px-6 py-16 lg:px-12 lg:py-20">
-          <div className="grid items-center gap-12 lg:grid-cols-[0.52fr_0.48fr] lg:gap-16">
-            <div>
-              <p className="animate-fade-up text-[11px] font-semibold uppercase tracking-[0.32em] text-[#4f7bff]">
-                Productos y soluciones
-              </p>
-              <h1 className="animate-fade-up mt-5 text-[2.4rem] [animation-delay:100ms] font-semibold leading-[1.05] tracking-[-0.03em] sm:text-5xl lg:text-[3.5rem]">
-                Todo lo que tu empresa necesita,{' '}
-                <span className="text-[#4f7bff]">en un solo lugar.</span>
-              </h1>
-              <p className="animate-fade-up mt-6 max-w-xl text-lg leading-8 text-white/70 [animation-delay:200ms]">
-                Explorá nuestras categorías y conectá con proveedores especializados en cada solución
-                industrial.
-              </p>
-
-              <div className="animate-fade-up relative mt-8 max-w-xl [animation-delay:300ms]">
-                <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-white/40" />
-                <input
-                  className="w-full rounded-full border border-white/20 bg-white/10 py-3.5 pl-12 pr-4 text-sm text-white outline-none backdrop-blur-sm transition placeholder:text-white/45 focus:border-[#4f7bff] focus:bg-white/15"
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Buscar productos, aplicaciones o industrias..."
-                  value={search}
-                />
-              </div>
-
-              <div className="animate-fade-up mt-5 flex flex-wrap items-center gap-2 text-sm text-white/50 [animation-delay:400ms]">
-                <span className="font-medium">Más buscados:</span>
-                {MOST_SEARCHED.map((term) => (
-                  <button
-                    key={term}
-                    className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs font-medium text-white/70 transition hover:border-white/45 hover:text-white"
-                    onClick={() => setSearch(term)}
-                    type="button"
-                  >
-                    {term}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Collage: las fotos entran escalonadas y flotan suave. */}
-            <div className="relative">
-              <div className="grid grid-cols-2 grid-rows-2 gap-3">
-                <div className="animate-fade-up group relative row-span-2 h-full min-h-[300px] overflow-hidden rounded-2xl [animation-delay:250ms] bg-white/5 ring-1 ring-white/10">
-                  <Image alt="" className="object-cover transition duration-700 group-hover:scale-110" fill sizes="(min-width:1024px) 26vw, 50vw" src={HERO_IMAGES[0]} />
-                </div>
-                <div className="animate-fade-up group relative h-36 overflow-hidden rounded-2xl [animation-delay:400ms] bg-white/5 ring-1 ring-white/10 sm:h-40">
-                  <Image alt="" className="object-cover transition duration-700 group-hover:scale-110" fill sizes="(min-width:1024px) 26vw, 50vw" src={HERO_IMAGES[1]} />
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="animate-fade-up group relative overflow-hidden rounded-2xl [animation-delay:550ms] bg-white/5 ring-1 ring-white/10">
-                    <Image alt="" className="object-cover transition duration-700 group-hover:scale-110" fill sizes="13vw" src={HERO_IMAGES[2]} />
-                  </div>
-                  <div className="animate-fade-up group relative overflow-hidden rounded-2xl [animation-delay:700ms] bg-white/5 ring-1 ring-white/10">
-                    <Image alt="" className="object-cover transition duration-700 group-hover:scale-110" fill sizes="13vw" src={HERO_IMAGES[3]} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="absolute -bottom-5 left-1/2 -translate-x-1/2">
-              <div className="animate-badge-in flex items-center gap-3 rounded-2xl border border-white/15 bg-[#0a0f1e] px-5 py-3 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#2f6bff]/15 text-[#4f7bff]">
-                  <UsersIcon />
-                </span>
-                <div>
-                  <p className="text-base font-semibold text-white">{supplierBadge}</p>
-                  <p className="text-xs text-white/50">Proveedores activos</p>
-                </div>
-              </div>
-              </div>
-            </div>
+        <div className="relative z-10 mx-auto flex min-h-[520px] w-full max-w-[1440px] flex-col justify-center px-6 py-16 lg:min-h-[600px] lg:px-12">
+          <div className="max-w-[780px]">
+            <HeroTitle accent="en un solo lugar.">Todo lo que tu empresa necesita,</HeroTitle>
+            <HeroLead>Explorá nuestras categorías y conectá con proveedores especializados en cada solución industrial.</HeroLead>
+            <HeroSearch
+              label="Buscar productos"
+              onChange={setSearch}
+              onSubmit={scrollToFamilies}
+              placeholder="Buscar productos, aplicaciones o industrias..."
+              value={search}
+            />
+            <HeroSuggestions
+              label="Más buscados:"
+              onPick={(term) => {
+                setSearch(term);
+                scrollToFamilies();
+              }}
+              terms={MOST_SEARCHED}
+            />
           </div>
 
           {/* Los numeros, en la misma fila que usa la home. */}
-          <div className="mt-20 flex flex-wrap gap-x-12 gap-y-5 lg:mt-16">
+          <div className="mt-12 flex flex-wrap gap-x-8 gap-y-4 xl:gap-0 xl:divide-x xl:divide-white/15">
             {[
               { icon: <CubeIcon className="h-5 w-5" />, v: `${categories.length}+`, l: 'categorías de productos' },
               { icon: <UsersIcon className="h-5 w-5" />, v: supplierLabel, l: 'proveedores especializados' },
               { icon: <ShieldIcon className="h-5 w-5" />, v: 'Verificados', l: 'calidad y confianza' },
               { icon: <TrendingIcon className="h-5 w-5" />, v: 'Actualizado', l: 'nuevos productos cada semana' },
             ].map((item, index) => (
-              <div key={item.l} className="animate-fade-up flex items-center gap-2.5" style={{ animationDelay: `${600 + index * 100}ms` }}>
+              <div key={item.l} className="animate-fade-up flex items-center gap-2.5 xl:px-9 xl:first:pl-0" style={{ animationDelay: `${600 + index * 100}ms` }}>
                 <span className="text-[#4f7bff]">{item.icon}</span>
                 <p className="text-sm text-white/75">
                   <span className="font-semibold text-white">{item.v}</span> {item.l}
@@ -526,12 +402,11 @@ function ProductosContent({ initialQuery }: { initialQuery: string }) {
       </section>
 
       {/* ==================== FAMILIAS ==================== */}
-      <section className="bg-white">
+      <section className="scroll-mt-20 bg-white" id="familias">
         <div className="mx-auto w-full max-w-[1440px] px-6 py-16 lg:px-12 lg:py-20">
           <Reveal className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Categorías</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-[-0.03em] text-slate-950 sm:text-[2.4rem]">
+              <h2 className="text-3xl font-bold tracking-[-0.03em] text-slate-950 sm:text-[2.4rem]">
                 Explorá por familias de productos.
               </h2>
             </div>
@@ -559,14 +434,13 @@ function ProductosContent({ initialQuery }: { initialQuery: string }) {
 
       {/* ==================== ASESORAMIENTO ==================== */}
       <section className="relative isolate overflow-hidden bg-[#0b1530] text-white">
-        <div className="absolute inset-y-0 right-0 w-full lg:w-[62%]">
-          <Image alt="" className="object-cover object-[15%_center]" fill sizes="(min-width:1024px) 62vw, 100vw" src="/heroatarweb.png" />
+        <div className="absolute inset-y-0 right-0 w-full lg:w-[62%] lg:[mask-image:linear-gradient(90deg,transparent,#000_35%)]">
+          <Image alt="" className="object-cover object-[62%_center]" fill sizes="(min-width:1024px) 62vw, 100vw" src="/asesoramiento-atar.png" />
         </div>
         <div className="absolute inset-0 bg-[linear-gradient(90deg,#0b1530_0%,#0b1530_36%,rgba(11,21,48,0.7)_52%,rgba(11,21,48,0.15)_75%)]" />
         <div className="absolute inset-0 bg-[#0b1530]/60 lg:hidden" />
         <Reveal className="relative z-10 mx-auto w-full max-w-[1440px] px-6 py-16 lg:px-12 lg:py-20">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/70">¿No sabés exactamente qué producto necesitás?</p>
-          <h2 className="mt-4 max-w-[620px] text-3xl font-bold leading-[1.1] tracking-[-0.03em] sm:text-[2.6rem]">
+          <h2 className="max-w-[620px] text-3xl font-bold leading-[1.1] tracking-[-0.03em] sm:text-[2.6rem]">
             Contanos tu necesidad y encontramos la mejor solución.
           </h2>
           <p className="mt-4 max-w-[520px] text-base leading-7 text-white/75">
@@ -598,9 +472,9 @@ function ProductosContent({ initialQuery }: { initialQuery: string }) {
           </Reveal>
 
           {!suppliersLoaded ? (
-            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-              {Array.from({ length: 5 }).map((_, index) => (
-                <div key={index} className="h-[150px] animate-pulse rounded-[14px] bg-slate-100" />
+            <div className="mt-10 grid gap-5 lg:grid-cols-2 lg:gap-6">
+              {Array.from({ length: 2 }).map((_, index) => (
+                <div key={index} className="h-[300px] animate-pulse rounded-[22px] bg-slate-100" />
               ))}
             </div>
           ) : featuredSuppliers.length === 0 ? (
@@ -608,10 +482,10 @@ function ProductosContent({ initialQuery }: { initialQuery: string }) {
               Pronto vas a ver acá a las empresas de la red.
             </div>
           ) : (
-            <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            <div className="mt-10 grid gap-5 lg:grid-cols-2 lg:gap-6">
               {featuredSuppliers.map((supplier, index) => (
-                <Reveal key={supplier.id} className="h-full" delay={index * 70}>
-                  <SupplierCard supplier={supplier} />
+                <Reveal key={supplier.id} className="h-full min-w-0" delay={index * 70}>
+                  <SupplierShowcaseCard supplier={supplier} />
                 </Reveal>
               ))}
             </div>
@@ -625,8 +499,7 @@ function ProductosContent({ initialQuery }: { initialQuery: string }) {
         <div className="absolute inset-0 bg-[linear-gradient(90deg,#0b1530_0%,rgba(11,21,48,0.85)_45%,rgba(11,21,48,0.55)_100%)]" />
         <Reveal className="relative z-10 mx-auto flex w-full max-w-[1440px] flex-col gap-8 px-6 py-16 lg:flex-row lg:items-center lg:justify-between lg:px-12 lg:py-20">
           <div>
-            <p className="text-base font-medium text-white/80">¿Ya sabés qué necesitás?</p>
-            <h2 className="mt-3 max-w-[760px] text-3xl font-bold leading-[1.1] tracking-[-0.03em] sm:text-[2.6rem]">
+            <h2 className="max-w-[760px] text-3xl font-bold leading-[1.1] tracking-[-0.03em] sm:text-[2.6rem]">
               Pedí cotizaciones a proveedores especializados en la industria de la rafia.
             </h2>
             <p className="mt-4 text-base text-white/75">Compará opciones, precios y condiciones de empresas verificadas.</p>
@@ -645,82 +518,47 @@ function ProductosContent({ initialQuery }: { initialQuery: string }) {
 
 /* Subcomponentes ---------------------------------------------------------- */
 
+/** Ilustraciones de cada familia: el mismo estilo de íconos que las tarjetas del inicio. */
+const FAMILY_ILLUSTRATIONS: Record<string, string> = {
+  envases: '/categorias/cat5-bigbags.png',
+  telas: '/categorias/cat5-telas.png',
+  hilos: '/categorias/ico-hilos.png',
+  materias: '/categorias/ico-polimeros.png',
+  impresion: '/categorias/ico-tintas.png',
+  maquinaria: '/categorias/cat5-maquinaria.png',
+};
+
 function FamilyCard({ family }: { family: ProductFamily }) {
+  const { categoryName } = useRegion();
   return (
-    <div className="group flex h-full flex-col overflow-hidden rounded-[14px] border border-slate-200 bg-white transition duration-300 hover:-translate-y-1 hover:border-[#1f5bff]/40 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
-      <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
+    <div className="group flex h-full flex-col rounded-[22px] border border-[#e3e8f4] bg-[linear-gradient(180deg,#f8faff_0%,#eff3fc_100%)] p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition duration-300 hover:-translate-y-1 hover:border-[#c9d5f5] hover:shadow-[0_18px_40px_rgba(24,71,255,0.10)] sm:p-5">
+      <div className="relative aspect-[5/4]">
         <Image
           alt={family.title}
-          className="object-cover transition duration-500 group-hover:scale-105"
+          className="object-contain transition duration-500 group-hover:scale-105"
           fill
-          sizes="(min-width:1280px) 16vw, (min-width:640px) 45vw, 90vw"
-          src={family.image}
+          sizes="(min-width:1280px) 14vw, (min-width:1024px) 28vw, 45vw"
+          src={FAMILY_ILLUSTRATIONS[family.id] ?? family.image}
         />
       </div>
-      <div className="flex flex-1 flex-col p-4">
-        <span className="text-[#1f5bff]">
-          <FamilyIcon name={family.icon} />
-        </span>
-        <h3 className="mt-3 text-[17px] font-bold leading-6 tracking-[-0.01em] text-slate-950">{family.title}</h3>
-        <ul className="mt-3 space-y-1.5">
-          {family.items.map((item) => (
-            <li key={item.label}>
-              <Link className="text-[13px] transition hover:underline" href={newRequestHref(item.category)}>
-                <span className="text-slate-500 hover:text-[#1f5bff]">{item.label}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-        <Link
-          aria-label={`Solicitar cotización de ${family.title}`}
-          className="mt-auto flex h-8 w-8 items-center justify-center self-end rounded-full text-[#1f5bff] transition hover:bg-[#eef2ff] group-hover:translate-x-0.5"
-          href={newRequestHref(family.items[0]?.category)}
-        >
-          <ArrowIcon />
-        </Link>
-      </div>
+      <h3 className="mt-4 text-[17px] font-bold leading-tight tracking-[-0.02em] text-[#0b1533] sm:text-[19px]">{family.title}</h3>
+      <ul className="mt-3 space-y-1.5">
+        {family.items.map((item) => (
+          <li key={item.label}>
+            <Link className="text-[13px] transition hover:underline sm:text-[14px]" href={newRequestHref(item.category)}>
+              <span className="text-slate-500 hover:text-[#1f5bff]">{categoryName(item.label)}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+      <Link
+        aria-label={`Solicitar cotización de ${family.title}`}
+        className="mt-auto flex h-9 w-9 shrink-0 items-center justify-center self-end rounded-full border border-[#e3e8f4] bg-white text-[#1f3fd6] shadow-[0_2px_6px_rgba(15,23,42,0.06)] transition hover:border-[#1f5bff] group-hover:translate-x-0.5"
+        href={newRequestHref(family.items[0]?.category)}
+      >
+        <ArrowIcon />
+      </Link>
     </div>
-  );
-}
-
-function SupplierCard({ supplier }: { supplier: SupplierDirectoryRecord }) {
-  const subtitle = supplier.mainProducts[0] ?? getSupplierCategoryLabel(supplier.companyType);
-  const tags = Array.from(new Set([...supplier.mainProducts, ...supplier.tags])).slice(0, 3);
-  return (
-    <Link
-      className="group relative flex h-full flex-col rounded-[14px] border border-slate-200 bg-white p-4 transition duration-300 hover:-translate-y-1 hover:border-[#1f5bff]/40 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
-      href={`/productos/${supplier.slug}`}
-    >
-      <span className="absolute right-3 top-3 text-slate-400 transition group-hover:text-[#1f5bff]">
-        <ExternalIcon />
-      </span>
-      <div className="flex items-center gap-3 pr-6">
-        <CompanyLogo
-          className="h-11 w-11"
-          logoUrl={supplier.logoUrl}
-          name={supplier.name}
-          rounded="rounded-[10px]"
-          textClassName="text-[13px]"
-          tone="bg-[#eef3ff] text-[#1f5bff]"
-        />
-        <div className="min-w-0">
-          <p className="flex items-center gap-1.5 text-[15px] font-bold text-slate-950">
-            <span className="truncate">{supplier.name}</span>
-            {supplier.isVerified ? <VerifiedIcon /> : null}
-          </p>
-          <p className="truncate text-[12px] text-slate-500">{subtitle}</p>
-        </div>
-      </div>
-      {tags.length > 0 ? (
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {tags.map((tag) => (
-            <span key={tag} className="rounded-md border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600">
-              {tag}
-            </span>
-          ))}
-        </div>
-      ) : null}
-    </Link>
   );
 }
 

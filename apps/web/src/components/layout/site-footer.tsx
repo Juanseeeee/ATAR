@@ -93,7 +93,7 @@ export default function SiteFooter() {
   const isHome = ['/', '/productos', '/proveedores', '/como-funciona'].includes(pathname ?? '');
 
   return (
-    <>
+    <div className="theme-public">
       {isHome ? null : (
       /* CTA BAND full-width, pegada al footer */
       <section className="relative overflow-hidden bg-[linear-gradient(120deg,#070b1a_0%,#0e1633_55%,#141d4a_100%)] text-white">
@@ -202,6 +202,6 @@ export default function SiteFooter() {
           </div>
         </div>
       </footer>
-    </>
+    </div>
   );
 }

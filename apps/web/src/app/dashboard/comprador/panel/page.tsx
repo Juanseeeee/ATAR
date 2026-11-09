@@ -259,7 +259,7 @@ export default function DashboardCompradorPanelPage() {
   const statCards = [
     { label: 'Solicitudes activas', value: kpis[0].value, href: '/dashboard/comprador/solicitudes', icon: 'file' as const, tone: 'bg-[#dbe6ff] text-[#1238d6]', line: 'border-t-[#1847ff]' },
     { label: 'Cotizaciones recibidas', value: kpis[1].value, href: '/dashboard/comprador/cotizaciones', icon: 'hourglass' as const, tone: 'bg-[#ffe6bd] text-amber-700', line: 'border-t-amber-500' },
-    { label: 'Pedidos en curso', value: kpis[2].value, href: '/dashboard/comprador/pedidos', icon: 'box' as const, tone: 'bg-[#e9dcff] text-violet-700', line: 'border-t-violet-600' },
+    { label: 'Pedidos en curso', value: kpis[2].value, href: '/dashboard/comprador/pedidos', icon: 'box' as const, tone: 'bg-[#dde3f7] text-violet-700', line: 'border-t-violet-600' },
     { label: 'Proveedores guardados', value: favoritesCount, href: '/dashboard/comprador/favoritos', icon: 'building' as const, tone: 'bg-[#cdefdf] text-emerald-700', line: 'border-t-emerald-600' },
   ];
 
@@ -442,7 +442,7 @@ export default function DashboardCompradorPanelPage() {
                         <td className="px-3 py-2.5 text-center font-semibold text-slate-900">{request._count?.quotes ?? 0}</td>
                         <td className="px-5 py-2.5 text-right">
                           <Link
-                            className="inline-flex h-8 items-center whitespace-nowrap rounded-[8px] border border-[#1847ff] bg-[#eef2ff] px-3 text-[13px] font-semibold text-[#1238d6] transition hover:bg-[#dbe6ff]"
+                            className="inline-flex h-8 items-center whitespace-nowrap rounded-[8px] border border-[#1847ff] bg-[#eef3ff] px-3 text-[13px] font-semibold text-[#1238d6] transition hover:bg-[#dbe6ff]"
                             href={`/dashboard/comprador/solicitudes/${request.id}`}
                           >
                             Ver detalle
@@ -473,7 +473,7 @@ export default function DashboardCompradorPanelPage() {
                 const supplierName = request.awardedQuote?.supplierCompany?.name ?? 'Proveedor asignado';
                 return (
                   <li key={request.id} className="even:bg-[#f4f6fb]">
-                    <Link className="block px-4 py-3.5 transition hover:bg-[#eef2ff] lg:px-5" href="/dashboard/comprador/pedidos">
+                    <Link className="block px-4 py-3.5 transition hover:bg-[#eef3ff] lg:px-5" href="/dashboard/comprador/pedidos">
                       <span className="flex items-baseline justify-between gap-3">
                         <span className="truncate text-[14px] font-bold text-slate-950">{request.title}</span>
                         <span className="shrink-0 text-[12px] font-medium text-slate-600">{request.order?.orderNumber ?? 'Sin orden emitida'}</span>

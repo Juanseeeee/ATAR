@@ -1,6 +1,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import HomeCategories from '@/components/home/home-categories';
 import LatamMap from '@/components/home/latam-map';
+import { TRUST_LOGOS, TrustLogoItem } from '@/components/home/trust-logos';
 import LandingAuthRedirect from '@/components/layout/landing-auth-redirect';
 import CountUp from '@/components/ui/count-up';
 import Reveal from '@/components/ui/reveal';
@@ -19,7 +21,11 @@ type IconName =
   | 'truck'
   | 'users'
   | 'box'
-  | 'globe';
+  | 'globe'
+  | 'cart'
+  | 'factory'
+  | 'zap'
+  | 'layers';
 
 function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: string }) {
   const s = { stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, fill: 'none' };
@@ -84,6 +90,26 @@ function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: str
       <>
         <circle cx="12" cy="12" r="9" {...s} />
         <path d="M3 12h18M12 3a14 14 0 010 18M12 3a14 14 0 000 18" {...s} />
+      </>
+    ),
+    cart: (
+      <>
+        <path d="M2.5 4h2.6l2.3 10.5h10.8l2.3-7.5H6.2" {...s} />
+        <circle cx="9" cy="19" r="1.5" {...s} />
+        <circle cx="17" cy="19" r="1.5" {...s} />
+      </>
+    ),
+    factory: (
+      <>
+        <path d="M3 21V10l5 3v-3l5 3V8h3V4h3v17H3z" {...s} />
+        <path d="M7 17h2M11 17h2M15 17h2" {...s} />
+      </>
+    ),
+    zap: <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" {...s} />,
+    layers: (
+      <>
+        <path d="M12 3l9 5-9 5-9-5 9-5z" {...s} />
+        <path d="M3 12.5l9 5 9-5M3 16.5l9 5 9-5" {...s} />
       </>
     ),
   };
@@ -168,19 +194,10 @@ function Flag({ name }: { name: FlagName }) {
 
 const HERO_FEATURES: { icon: IconName; text: string }[] = [
   { icon: 'shield', text: 'Proveedores verificados' },
-  { icon: 'bolt', text: 'Cotizaciones en minutos' },
-  { icon: 'truck', text: 'Foco en una sola industria' },
+  { icon: 'zap', text: 'Cotizaciones en minutos' },
+  { icon: 'layers', text: 'Toda la cadena en un solo lugar' },
 ];
 
-const CATEGORIES: { title: string; text: string; img: string }[] = [
-  { title: 'Big Bags', text: 'Distintos tamaños y especificaciones.', img: '/bigbags.png' },
-  { title: 'Sacos y bolsas PP', text: 'Para múltiples aplicaciones.', img: '/bolsaspp.png' },
-  { title: 'Telas y rafia', text: 'Tejidos de alto rendimiento.', img: '/telasweb.png' },
-  { title: 'Hilos y cuerdas', text: 'Resistencia y calidad industrial.', img: '/hilosweb.png' },
-  { title: 'Polímeros', text: 'Materia prima para producir.', img: '/polimero.png' },
-  { title: 'Tintas', text: 'Para impresión y terminación.', img: '/tintasweb.png' },
-  { title: 'Maquinaria', text: 'Equipos y soluciones para tu planta.', img: '/maquinariaweb.png' },
-];
 
 const STEPS: { label: string; text: string; icon: IconName }[] = [
   { label: 'Buscá', text: 'Encontrá productos o proveedores.', icon: 'search' },
@@ -207,16 +224,15 @@ const COUNTRIES: { name: string; flag: FlagName | null }[] = [
   { name: 'Otros', flag: null },
 ];
 
-const TRUST = ['Braskem', 'ALPE', 'LyondellBasell', 'Indorama', 'Sinteplast', 'ExxonMobil', 'Sumitomo', 'Crown'];
-
 // globals.css fija `a { color: inherit }` fuera de las capas de Tailwind, así
 // que en los <Link> el color del texto va en un <span> hijo.
 // Accesos del hero. El perfil viaja a /acceso, que abre el registro con ese
 // perfil preseleccionado (ver AccessPanel).
-const HERO_ROLES: { label: string; hint: string; href: string }[] = [
-  { label: 'CLIENTE', hint: 'Quiero comprar', href: '/acceso?perfil=cliente' },
-  { label: 'VENDEDOR', hint: 'Trabajo para una empresa', href: '/acceso?perfil=vendedor' },
-  { label: 'PROVEEDOR', hint: 'Quiero vender', href: '/acceso?perfil=proveedor' },
+// Cada perfil lleva su color (el mismo que usa su panel en la plataforma).
+const HERO_ROLES: { label: string; hint: string; href: string; icon: IconName; color: string }[] = [
+  { label: 'Cliente', hint: 'Quiero comprar', href: '/acceso?perfil=cliente', icon: 'cart', color: 'text-[#1f5bff]' },
+  { label: 'Vendedor', hint: 'Trabajo para una empresa', href: '/acceso?perfil=vendedor', icon: 'users', color: 'text-[#16a34a]' },
+  { label: 'Proveedor', hint: 'Quiero vender mis productos', href: '/acceso?perfil=proveedor', icon: 'factory', color: 'text-[#3450b0]' },
 ];
 
 const primaryCta =
@@ -230,48 +246,57 @@ export default function Home() {
       <LandingAuthRedirect />
 
       {/* ==================== HERO ==================== */}
-      <section className="relative isolate overflow-hidden bg-[#0b1530] text-white">
-        {/* La foto ocupa la derecha para que el big bag con el logo no quede
-            debajo del texto; el degradé funde su borde con el fondo. */}
-        <div className="absolute inset-y-0 right-0 w-full lg:w-[70%]">
-          <Image alt="" className="animate-hero-zoom object-cover object-[60%_center]" fill priority sizes="(min-width:1024px) 70vw, 100vw" src="/heroatarweb.png" />
+      {/* Sube 69 px (el alto del header) para quedar detrás del header translúcido: los dos comparten el mismo fondo. */}
+      <section className="relative isolate -mt-[69px] overflow-hidden bg-[linear-gradient(160deg,#f4f7ff_0%,#e8eefc_55%,#dfe8fb_100%)] pt-[69px] text-slate-950">
+        {/* Manchas de luz azul: dan profundidad al fondo y algo que el vidrio de los botones pueda desenfocar. */}
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+          <div className="absolute -left-40 top-[-10%] h-[520px] w-[520px] rounded-full bg-[#9db8ff]/45 blur-[110px]" />
+          <div className="absolute bottom-[-20%] left-[30%] h-[460px] w-[460px] rounded-full bg-[#b9ccff]/50 blur-[120px]" />
+          <div className="absolute right-[-10%] top-[10%] h-[560px] w-[560px] rounded-full bg-[#c9d8ff]/60 blur-[120px]" />
         </div>
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,#0b1530_0%,#0b1530_30%,rgba(11,21,48,0.75)_45%,rgba(11,21,48,0.25)_62%,rgba(11,21,48,0)_78%)]" />
-        <div className="absolute inset-0 bg-[#0b1530]/70 lg:hidden" />
-        <div className="absolute inset-x-0 bottom-0 h-40 bg-[linear-gradient(0deg,rgba(11,21,48,0.55),transparent)]" />
 
-        <div className="relative z-10 mx-auto flex min-h-[560px] w-full max-w-[1440px] items-center px-6 py-16 lg:min-h-[640px] lg:px-12">
-          <div className="max-w-[760px]">
-            <h1 className="animate-fade-up text-[2.8rem] font-bold leading-[1.02] tracking-[-0.04em] sm:text-[3.8rem] xl:text-[4.6rem]">
-              El <span className="text-[#3b7bff] lg:whitespace-nowrap">punto de encuentro</span>
-              <br className="hidden lg:block" /> <span className="lg:whitespace-nowrap">de la industria de la rafia.</span>
+        {/* Emblema de ATAR armado con fotos (PNG con fondo transparente). */}
+        <div className="relative mx-auto h-[300px] w-full max-w-[520px] sm:h-[400px] lg:absolute lg:right-[3%] lg:top-1/2 lg:h-auto lg:w-[40%] lg:max-w-[860px] lg:-translate-y-1/2 lg:aspect-[1333/1180] min-[1400px]:w-[45%]">
+          <Image alt="" className="animate-fade-up object-contain drop-shadow-[0_30px_60px_rgba(31,64,160,0.18)]" fill priority sizes="(min-width:1024px) 45vw, 100vw" src="/hero-atar-logotipo.png" />
+        </div>
+
+        <div className="relative z-10 mx-auto flex w-full max-w-[1440px] px-6 pb-14 pt-4 lg:min-h-[max(760px,calc(100svh-69px))] lg:items-center lg:px-12 lg:py-20">
+          <div className="w-full lg:max-w-[540px] xl:max-w-[640px]">
+            <h1 className="animate-fade-up text-[2.75rem] font-bold leading-[1.03] tracking-[-0.04em] text-[#0b1530] sm:text-[3.7rem] lg:text-[3.1rem] xl:text-[3.5rem] min-[1400px]:text-[3.95rem]">
+              El punto de encuentro
+              <br className="hidden sm:block" /> de la <span className="text-[#1f5bff]">industria de la rafia.</span>
             </h1>
-            <p className="animate-fade-up mt-6 max-w-[560px] text-lg leading-8 text-white/80 [animation-delay:150ms]">
-              Comprá y vendé productos de la cadena del polipropileno, con proveedores verificados y cotizaciones en minutos.
+            <p className="animate-fade-up mt-5 max-w-[560px] text-lg leading-8 text-slate-600 [animation-delay:150ms] sm:text-xl">
+              Un marketplace B2B para comprar, vender y conectar con toda la cadena del polipropileno.
             </p>
 
-            {/* Un acceso por perfil: abre el registro existente con ese perfil ya elegido. */}
-            <div className="animate-fade-up mt-9 grid max-w-[680px] grid-cols-1 gap-3 [animation-delay:300ms] sm:grid-cols-3">
+            {/* Un acceso por perfil (glassmorphism): abre el registro con ese perfil ya elegido. */}
+            <div className="animate-fade-up mt-9 grid grid-cols-1 gap-3 [animation-delay:300ms] sm:grid-cols-3">
               {HERO_ROLES.map((role) => (
                 <Link
                   key={role.label}
-                  className="group flex h-[60px] items-center justify-between gap-3 rounded-[10px] border border-white/70 bg-transparent px-5 text-white transition hover:-translate-y-0.5 hover:border-[#1f5bff] hover:bg-[#1f5bff] hover:shadow-[0_14px_36px_rgba(31,91,255,0.35)] focus-visible:border-[#1f5bff] focus-visible:bg-[#1f5bff]"
+                  className={`group relative flex flex-col overflow-hidden rounded-[18px] border border-white/80 bg-white/45 px-5 py-4 shadow-[0_10px_30px_rgba(31,64,160,0.10),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:bg-white/70 hover:shadow-[0_18px_44px_rgba(31,64,160,0.18),inset_0_1px_0_#fff] ${role.color}`}
                   href={role.href}
                 >
-                  <span className="leading-tight">
-                    <span className="block text-[15px] font-bold tracking-[0.08em]">{role.label}</span>
-                    <span className={`block text-[12px] text-white/85`}>{role.hint}</span>
+                  {/* Brillo diagonal del vidrio. */}
+                  <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.65)_0%,rgba(255,255,255,0)_45%)]" />
+                  <span className="relative flex h-11 w-11 items-center justify-center rounded-[12px] border border-white/80 bg-white/70 shadow-[0_4px_12px_rgba(31,64,160,0.08)]">
+                    <Icon name={role.icon} className="h-6 w-6" />
                   </span>
-                  <Icon name="arrow" className="h-4 w-4 shrink-0 transition group-hover:translate-x-0.5" />
+                  <span className="relative mt-3 block text-[1.35rem] font-bold leading-tight tracking-[-0.02em] text-[#0b1530]">{role.label}</span>
+                  <span className="relative mt-1 flex items-end justify-between gap-3">
+                    <span className="text-[14px] leading-5 text-slate-600">{role.hint}</span>
+                    <Icon name="arrow" className="h-5 w-5 shrink-0 transition group-hover:translate-x-1" />
+                  </span>
                 </Link>
               ))}
             </div>
 
-            <div className="animate-fade-up mt-10 grid max-w-lg gap-3 [animation-delay:450ms] sm:mt-12 sm:grid-cols-3 sm:gap-6">
+            <div className="animate-fade-up mt-10 grid gap-4 [animation-delay:450ms] sm:mt-12 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-[#c3cfe8]">
               {HERO_FEATURES.map((item) => (
-                <div key={item.text} className="flex items-center gap-3">
-                  <Icon name={item.icon} className="h-6 w-6 shrink-0 text-[#5b8dff] sm:h-7 sm:w-7" />
-                  <p className="text-[13px] leading-5 text-white/85">{item.text}</p>
+                <div key={item.text} className="flex items-center gap-3 sm:px-5 sm:first:pl-0">
+                  <Icon name={item.icon} className="h-8 w-8 shrink-0 text-[#1f5bff]" />
+                  <p className="text-[14px] leading-5 text-slate-700">{item.text}</p>
                 </div>
               ))}
             </div>
@@ -284,8 +309,7 @@ export default function Home() {
         <div className="mx-auto w-full max-w-[1440px] px-6 py-16 lg:px-12 lg:py-20">
           <Reveal className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Categorías principales</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-[-0.03em] text-slate-950 sm:text-[2.5rem]">
+              <h2 className="text-3xl font-bold tracking-[-0.03em] text-slate-950 sm:text-[2.5rem]">
                 Todo para la industria de rafia y envases industriales.
               </h2>
             </div>
@@ -297,35 +321,7 @@ export default function Home() {
             </Link>
           </Reveal>
 
-          <div className="mt-10 grid grid-cols-2 gap-4 md:grid-cols-4 xl:grid-cols-7">
-            {CATEGORIES.map((cat, index) => (
-              <Reveal key={cat.title} delay={index * 80}>
-              <Link
-                className="group block h-full overflow-hidden rounded-[14px] border border-slate-200 bg-white transition duration-300 hover:-translate-y-1 hover:border-[#1f5bff]/40 hover:shadow-[0_18px_40px_rgba(15,23,42,0.10)]"
-                href={`/productos?q=${encodeURIComponent(cat.title.split(' ')[0])}`}
-              >
-                <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
-                  <Image
-                    alt={cat.title}
-                    className="object-cover transition duration-500 group-hover:scale-105"
-                    fill
-                    sizes="(min-width:1280px) 16vw, (min-width:768px) 33vw, 50vw"
-                    src={cat.img}
-                  />
-                </div>
-                <div className="p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-[15px] font-semibold text-slate-950">{cat.title}</p>
-                    <span className="text-[#1f5bff] transition group-hover:translate-x-1">
-                      <Icon name="arrow" className="h-4 w-4" />
-                    </span>
-                  </div>
-                  <p className="mt-1.5 text-[13px] leading-5 text-slate-500">{cat.text}</p>
-                </div>
-              </Link>
-              </Reveal>
-            ))}
-          </div>
+          <HomeCategories />
         </div>
       </section>
 
@@ -362,13 +358,12 @@ export default function Home() {
       {/* ==================== RED ESPECIALIZADA ==================== */}
       <section className="grid bg-[#0d2350] text-white lg:grid-cols-[1fr_1fr]">
         <div className="relative min-h-[300px] overflow-hidden lg:min-h-[520px]">
-          <Image alt="" className="object-cover object-center transition duration-[2000ms] hover:scale-105" fill sizes="(min-width:1024px) 50vw, 100vw" src="/acceso.png" />
+          <Image alt="" className="object-cover object-[40%_center] transition duration-[2000ms] hover:scale-105" fill sizes="(min-width:1024px) 50vw, 100vw" src="/empresas-reales.png" />
           <div className="absolute inset-0 bg-[linear-gradient(90deg,transparent_55%,#0d2350_100%)]" />
         </div>
         <div className="flex items-center px-6 py-14 lg:px-14">
           <Reveal className="max-w-[620px]">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-white/70">Una red especializada</p>
-            <h2 className="mt-4 text-3xl font-bold leading-[1.1] tracking-[-0.03em] sm:text-[2.6rem]">
+            <h2 className="text-3xl font-bold leading-[1.1] tracking-[-0.03em] sm:text-[2.6rem]">
               Empresas reales.
               <br />
               Oportunidades concretas.
@@ -400,8 +395,7 @@ export default function Home() {
               <Image alt="" className="origin-bottom-right scale-[1.35] transition duration-500 group-hover:scale-[1.42] object-contain object-right-bottom mix-blend-multiply" fill sizes="320px" src="/bolsapp.png" />
             </div>
             <div className="relative z-10 max-w-[360px]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Para compradores</p>
-              <h3 className="mt-3 text-[1.9rem] font-bold leading-[1.12] tracking-[-0.03em] text-slate-950">
+              <h3 className="text-[1.9rem] font-bold leading-[1.12] tracking-[-0.03em] text-slate-950">
                 Encontrá lo que necesitás, sin intermediarios.
               </h3>
               <p className="mt-3 text-sm leading-6 text-slate-600">
@@ -421,8 +415,7 @@ export default function Home() {
               <Image alt="" className="origin-bottom-right scale-[1.35] transition duration-500 group-hover:scale-[1.42] object-contain object-right-bottom mix-blend-multiply" fill sizes="320px" src="/bigbag.png" />
             </div>
             <div className="relative z-10 max-w-[360px]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Para proveedores</p>
-              <h3 className="mt-3 text-[1.9rem] font-bold leading-[1.12] tracking-[-0.03em] text-slate-950">
+              <h3 className="text-[1.9rem] font-bold leading-[1.12] tracking-[-0.03em] text-slate-950">
                 Llevá tus productos a más clientes.
               </h3>
               <p className="mt-3 text-sm leading-6 text-slate-600">
@@ -506,14 +499,8 @@ export default function Home() {
           {/* Cinta continua: la lista va duplicada y se desplaza la mitad. */}
           <div className="marquee mt-10 overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_8%,#000_92%,transparent)]">
             <div className="marquee-track flex w-max items-center gap-16">
-              {[...TRUST, ...TRUST].map((name, index) => (
-                <span
-                  key={`${name}-${index}`}
-                  aria-hidden={index >= TRUST.length}
-                  className="whitespace-nowrap text-xl font-bold tracking-tight text-slate-400 transition hover:text-slate-700"
-                >
-                  {name}
-                </span>
+              {[...TRUST_LOGOS, ...TRUST_LOGOS].map((logo, index) => (
+                <TrustLogoItem key={`${logo.name}-${index}`} hidden={index >= TRUST_LOGOS.length} logo={logo} />
               ))}
             </div>
           </div>

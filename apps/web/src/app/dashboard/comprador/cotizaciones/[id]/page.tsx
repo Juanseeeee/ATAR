@@ -528,7 +528,7 @@ export default function BuyerQuoteDetailPage() {
                             <li
                               key={rev.id}
                               className={`rounded-lg border px-3 py-2 text-[12px] ${
-                                isCurrent ? 'border-[#c7d2fe] bg-[#eef2ff]/50' : 'border-slate-200 bg-white'
+                                isCurrent ? 'border-[#c4d4ff] bg-[#eef3ff]/50' : 'border-slate-200 bg-white'
                               }`}
                             >
                               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -699,7 +699,7 @@ function MetricCard({
   return (
     <div
       className={`flex items-start gap-3 rounded-xl border px-4 py-3.5 ${
-        highlight ? 'border-[#1847ff] bg-[#eef2ff]' : 'border-slate-300 bg-[#f4f6fb]'
+        highlight ? 'border-[#1847ff] bg-[#eef3ff]' : 'border-slate-300 bg-[#f4f6fb]'
       }`}
     >
       <span

@@ -2,9 +2,11 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import CompanyLogo from '@/components/dashboard/company-logo';
 import ArgentinaMap from '@/components/home/argentina-map';
+import SupplierShowcaseCard from '@/components/marketing/supplier-showcase-card';
+import { HeroLead, HeroSearch, HeroSuggestions, HeroTitle } from '@/components/marketing/page-hero';
 import Reveal from '@/components/ui/reveal';
 import { isCategoryHidden, withoutHiddenCategories } from '@/lib/hidden-categories';
 import { atarApi, SUPPLIER_ROLE_LABELS, type SupplierDirectoryRecord, type SupplierRole } from '@/lib/atar-api';
@@ -71,14 +73,6 @@ function supplierLocation(supplier: SupplierDirectoryRecord) {
 }
 
 /* Iconos ------------------------------------------------------------------ */
-
-function SearchIcon({ className = 'h-5 w-5' }: { className?: string }) {
-  return (
-    <svg aria-hidden="true" className={className} fill="none" viewBox="0 0 24 24">
-      <path d="M21 21l-4.3-4.3M11 19a8 8 0 100-16 8 8 0 000 16z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-    </svg>
-  );
-}
 
 function PinIcon({ className = 'h-4 w-4' }: { className?: string }) {
   return (
@@ -278,12 +272,6 @@ export default function ProveedoresPage() {
     document.getElementById('directorio')?.scrollIntoView({ behavior: 'smooth' });
   }
 
-  function handleSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    resetPaging();
-    scrollToDirectory();
-  }
-
   function selectCity(city: string) {
     setLocation(city);
     resetPaging();
@@ -297,68 +285,42 @@ export default function ProveedoresPage() {
   return (
     <main className="min-h-screen bg-white text-slate-950">
       {/* ==================== HERO ==================== */}
-      <section className="relative isolate overflow-hidden bg-[#eef3fc]">
-        <div className="absolute inset-y-0 right-0 w-full lg:w-[64%]">
-          <Image alt="" className="animate-hero-zoom object-cover object-[65%_center]" fill priority sizes="(min-width:1024px) 64vw, 100vw" src="/heroatarweb.png" />
-        </div>
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,#f3f6fd_0%,#f3f6fd_34%,rgba(243,246,253,0.85)_46%,rgba(243,246,253,0.2)_62%,rgba(243,246,253,0)_74%)]" />
-        <div className="absolute inset-0 bg-white/75 lg:hidden" />
+      <section className="relative isolate overflow-hidden bg-[#0a1430] text-white">
+        {/* La imagen ya trae el lado izquierdo azul oscuro para el texto. */}
+        <Image alt="" className="animate-hero-zoom object-cover object-[35%_center]" fill priority sizes="100vw" src="/hero-proveedores-atar.png" />
+        {/* El texto puede llegar hasta la tela clara: el oscurecido cubre hasta ~60% del ancho. */}
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(7,14,36,0.95)_0%,rgba(7,14,36,0.85)_42%,rgba(7,14,36,0.45)_64%,transparent_85%)] 2xl:bg-[linear-gradient(90deg,rgba(7,14,36,0.85)_0%,rgba(7,14,36,0.6)_40%,transparent_65%)]" />
+        <div className="absolute inset-0 bg-[#070e24]/60 lg:hidden" />
 
-        <div className="relative z-10 mx-auto flex min-h-[520px] w-full max-w-[1440px] items-center px-6 py-16 lg:min-h-[600px] lg:px-12">
-          <div className="max-w-[620px]">
-            <p className="animate-fade-up text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-700">
-              Proveedores de la industria de la rafia
-            </p>
-            <h1 className="animate-fade-up mt-4 text-[2.6rem] font-bold leading-[1.04] tracking-[-0.04em] text-[#0b1530] [animation-delay:100ms] sm:text-[3.4rem] xl:text-[3.9rem]">
-              Las empresas que hacen posible <br className="hidden sm:block" />
-              <span className="text-[#1f5bff] sm:whitespace-nowrap">esta industria.</span>
-            </h1>
-            <p className="animate-fade-up mt-5 max-w-[520px] text-[17px] leading-7 text-slate-600 [animation-delay:200ms]">
+        <div className="relative z-10 mx-auto flex min-h-[520px] w-full max-w-[1440px] flex-col justify-center px-6 py-16 lg:min-h-[600px] lg:px-12">
+          <div className="max-w-[780px]">
+            <HeroTitle accent="esta industria.">Las empresas que hacen posible</HeroTitle>
+            <HeroLead>
               Conectá con fabricantes, distribuidores y proveedores verificados de rafia, Big Bags, sacos, telas, hilos,
               maquinaria y más.
-            </p>
-
-            <form
-              className="animate-fade-up mt-8 flex items-center gap-2 rounded-[14px] border border-slate-200 bg-white p-2 shadow-[0_18px_40px_rgba(15,23,42,0.08)] [animation-delay:300ms]"
-              onSubmit={handleSearch}
-              role="search"
-            >
-              <span className="pl-2 text-slate-400">
-                <SearchIcon />
-              </span>
-              <input
-                aria-label="Buscar proveedores"
-                className="h-11 min-w-0 flex-1 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  resetPaging();
-                }}
-                placeholder="Buscá empresas, productos o ubicaciones..."
-                type="search"
-                value={search}
-              />
-              <button className="h-11 shrink-0 rounded-[10px] bg-[#1f5bff] px-6 text-sm font-semibold text-white transition hover:bg-[#194ee6]" type="submit">
-                Buscar
-              </button>
-            </form>
-
-            <div className="animate-fade-up mt-4 flex flex-wrap items-center gap-2 text-[13px] text-slate-600 [animation-delay:400ms]">
-              <span>Búsquedas frecuentes:</span>
-              {FREQUENT_SEARCHES.map((term) => (
-                <button
-                  key={term}
-                  className="rounded-full border border-slate-200 bg-white px-3.5 py-1.5 text-[12px] font-medium text-slate-700 transition hover:border-[#1f5bff]/50 hover:text-[#1f5bff]"
-                  onClick={() => {
-                    setSearch(term);
-                    resetPaging();
-                    scrollToDirectory();
-                  }}
-                  type="button"
-                >
-                  {term}
-                </button>
-              ))}
-            </div>
+            </HeroLead>
+            <HeroSearch
+              label="Buscar proveedores"
+              onChange={(value) => {
+                setSearch(value);
+                resetPaging();
+              }}
+              onSubmit={() => {
+                resetPaging();
+                scrollToDirectory();
+              }}
+              placeholder="Buscá empresas, productos o ubicaciones..."
+              value={search}
+            />
+            <HeroSuggestions
+              label="Búsquedas frecuentes:"
+              onPick={(term) => {
+                setSearch(term);
+                resetPaging();
+                scrollToDirectory();
+              }}
+              terms={FREQUENT_SEARCHES}
+            />
           </div>
         </div>
       </section>
@@ -368,8 +330,7 @@ export default function ProveedoresPage() {
         <div className="mx-auto w-full max-w-[1440px] px-6 py-14 lg:px-12 lg:py-16">
           <Reveal className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Proveedores</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-[-0.03em] text-slate-950 sm:text-[2.3rem]">
+              <h2 className="text-3xl font-bold tracking-[-0.03em] text-slate-950 sm:text-[2.3rem]">
                 Encontrá el socio ideal para tu industria.
               </h2>
             </div>
@@ -572,8 +533,7 @@ export default function ProveedoresPage() {
         <div className="absolute inset-0 bg-[linear-gradient(90deg,#0b1530_0%,#0b1530_38%,rgba(11,21,48,0.7)_54%,rgba(11,21,48,0.1)_78%)]" />
         <div className="absolute inset-0 bg-[#0b1530]/60 lg:hidden" />
         <Reveal className="relative z-10 mx-auto w-full max-w-[1440px] px-6 py-14 lg:px-12 lg:py-16">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/70">¿Fabricás o distribuís para la industria?</p>
-          <h2 className="mt-4 max-w-[640px] text-3xl font-bold leading-[1.1] tracking-[-0.03em] sm:text-[2.5rem]">
+          <h2 className="max-w-[640px] text-3xl font-bold leading-[1.1] tracking-[-0.03em] sm:text-[2.5rem]">
             Mostrá tus productos a compradores de todo el país.
           </h2>
           <p className="mt-4 max-w-[500px] text-base leading-7 text-white/75">
@@ -635,43 +595,10 @@ export default function ProveedoresPage() {
                 <ArrowIcon />
               </button>
             </div>
-            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {featuredSuppliers.map((supplier) => {
-                const family = supplierFamilies(supplier)[0];
-                return (
-                  <Link
-                    key={supplier.id}
-                    className="group overflow-hidden rounded-[12px] border border-slate-200 bg-white transition duration-300 hover:-translate-y-1 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]"
-                    href={`/productos/${supplier.slug}`}
-                  >
-                    <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
-                      <Image
-                        alt=""
-                        className="object-cover transition duration-500 group-hover:scale-105"
-                        fill
-                        sizes="(min-width:640px) 12vw, 45vw"
-                        src={family?.image ?? '/maquinariaweb.png'}
-                      />
-                    </div>
-                    <div className="p-3">
-                      <p className="truncate text-[14px] font-bold text-slate-950">{supplier.name}</p>
-                      <p className="mt-0.5 flex items-center gap-1 truncate text-[12px] text-slate-500">
-                        <PinIcon className="h-3.5 w-3.5 shrink-0" />
-                        {supplierLocation(supplier)}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {supplierProducts(supplier)
-                          .slice(0, 2)
-                          .map((product) => (
-                            <span key={product} className="rounded-md bg-[#eef3ff] px-1.5 py-0.5 text-[10px] text-slate-600">
-                              {product}
-                            </span>
-                          ))}
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
+            <div className="mt-6 grid gap-5">
+              {featuredSuppliers.map((supplier) => (
+                <SupplierShowcaseCard key={supplier.id} supplier={supplier} />
+              ))}
             </div>
           </Reveal>
         </div>
@@ -683,8 +610,7 @@ export default function ProveedoresPage() {
         <div className="absolute inset-0 bg-[linear-gradient(90deg,#0b1530_0%,rgba(11,21,48,0.85)_45%,rgba(11,21,48,0.55)_100%)]" />
         <Reveal className="relative z-10 mx-auto flex w-full max-w-[1440px] flex-col gap-8 px-6 py-14 lg:flex-row lg:items-center lg:justify-between lg:px-12 lg:py-16">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/70">Sumate a la red de proveedores</p>
-            <h2 className="mt-3 text-3xl font-bold leading-[1.1] tracking-[-0.03em] sm:text-[2.5rem]">Mostrá tus productos a una industria real.</h2>
+            <h2 className="text-3xl font-bold leading-[1.1] tracking-[-0.03em] sm:text-[2.5rem]">Mostrá tus productos a una industria real.</h2>
             <p className="mt-3 text-base text-white/75">Recibí solicitudes de cotización, conectá con nuevos clientes y hacé crecer tu negocio.</p>
           </div>
           <Link

@@ -148,7 +148,6 @@ const STATS: { icon: IconName; v: string; l: string }[] = [
   { icon: 'globe', v: '8', l: 'países de la región' },
 ];
 
-const QUOTE_PREVIEW = ['Envapack SA', 'Plastibag', 'Rafiatex', 'Industrias Delta'];
 
 // globals.css fija `a { color: inherit }` fuera de las capas de Tailwind: en
 // los <Link> el color del texto va en un <span> hijo.
@@ -157,52 +156,18 @@ const primaryCta =
 
 /* ============================ PASOS: ilustraciones ============================ */
 
+const STEP_IMAGES: Record<number, { src: string; alt: string }> = {
+  1: { src: '/como-funciona/paso-busca-v2.png', alt: 'Buscador de ATAR con Big Bags, rafia y telas' },
+  2: { src: '/como-funciona/paso-compara-v2.png', alt: 'Big Bags de distintos proveedores verificados' },
+  3: { src: '/como-funciona/paso-solicita-v2.png', alt: 'Formulario para solicitar cotización a varios proveedores' },
+  4: { src: '/como-funciona/paso-negocios-v2.png', alt: 'Apretón de manos frente a Big Bags en un depósito' },
+};
+
 function StepVisual({ step }: { step: number }) {
-  if (step === 1) {
-    return (
-      <div className="relative aspect-[4/3] overflow-hidden rounded-[12px] bg-slate-200">
-        <Image alt="" className="object-cover" fill sizes="(min-width:1024px) 22vw, 90vw" src="/maquinariaweb.png" />
-        <div className="absolute inset-x-3 top-1/2 flex -translate-y-1/2 items-center overflow-hidden rounded-[10px] bg-white shadow-[0_12px_30px_rgba(15,23,42,0.25)]">
-          <span className="flex-1 truncate px-3 py-2.5 text-[12px] text-slate-500">Big Bags, rafia, telas...</span>
-          <span className="flex h-10 w-10 items-center justify-center bg-[#1f5bff] text-white">
-            <Icon name="search" className="h-4 w-4" />
-          </span>
-        </div>
-      </div>
-    );
-  }
-  if (step === 2) {
-    return (
-      <div className="relative aspect-[4/3] overflow-hidden rounded-[12px] bg-[linear-gradient(180deg,#eef3ff,#dfe8ff)]">
-        <Image alt="" className="object-contain object-bottom p-3 mix-blend-multiply" fill sizes="(min-width:1024px) 22vw, 90vw" src="/bigbag.png" />
-      </div>
-    );
-  }
-  if (step === 3) {
-    return (
-      <div className="flex aspect-[4/3] items-center justify-center rounded-[12px] bg-[linear-gradient(160deg,#e6edff,#c9d8ff)] p-4">
-        <div className="w-full max-w-[240px] rounded-[10px] bg-white p-3 shadow-[0_14px_34px_rgba(31,91,255,0.18)]">
-          <p className="text-[12px] font-bold text-slate-900">Solicitar cotización</p>
-          <ul className="mt-2 space-y-1.5">
-            {QUOTE_PREVIEW.map((name) => (
-              <li key={name} className="flex items-center gap-2 rounded-[6px] border border-slate-100 px-2 py-1 text-[11px] text-slate-700">
-                <span className="flex h-3.5 w-3.5 items-center justify-center rounded-[3px] bg-[#1f5bff] text-white">
-                  <Icon name="check" className="h-2.5 w-2.5" />
-                </span>
-                {name}
-              </li>
-            ))}
-          </ul>
-          <span className="mt-2.5 flex h-7 items-center justify-center rounded-[6px] bg-[#1f5bff] text-[11px] font-semibold text-white">
-            Enviar solicitudes
-          </span>
-        </div>
-      </div>
-    );
-  }
+  const image = STEP_IMAGES[step];
   return (
-    <div className="relative aspect-[4/3] overflow-hidden rounded-[12px] bg-slate-800">
-      <Image alt="" className="object-cover" fill sizes="(min-width:1024px) 22vw, 90vw" src="/login.png" />
+    <div className="relative aspect-square overflow-hidden rounded-[14px] bg-[#eef3ff]">
+      <Image alt={image.alt} className="object-cover" fill sizes="(min-width:1024px) 22vw, (min-width:640px) 45vw, 78vw" src={image.src} />
     </div>
   );
 }
@@ -222,8 +187,7 @@ export default function ComoFuncionaPage() {
 
         <div className="relative z-10 mx-auto grid min-h-[540px] w-full max-w-[1440px] items-center gap-10 px-6 py-16 lg:min-h-[600px] lg:grid-cols-[1fr_0.8fr] lg:px-12">
           <div className="max-w-[640px]">
-            <p className="animate-fade-up text-[11px] font-semibold uppercase tracking-[0.22em] text-white/80">Cómo funciona ATAR</p>
-            <h1 className="animate-fade-up mt-4 text-[2.6rem] font-bold leading-[1.04] tracking-[-0.04em] [animation-delay:100ms] sm:text-[3.4rem] xl:text-[3.9rem]">
+            <h1 className="animate-fade-up text-[2.6rem] font-bold leading-[1.04] tracking-[-0.04em] [animation-delay:100ms] sm:text-[3.4rem] xl:text-[3.9rem]">
               Conectamos a toda <br className="hidden sm:block" />
               la industria de la rafia <br className="hidden sm:block" />
               <span className="text-[#3b7bff]">en simples pasos.</span>
@@ -269,26 +233,31 @@ export default function ComoFuncionaPage() {
         <div className="mx-auto w-full max-w-[1440px] px-6 py-16 lg:px-12 lg:py-20">
           <Reveal className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Paso a paso</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-[-0.03em] text-[#0b1530] sm:text-[2.5rem]">Cómo funciona</h2>
+              <h2 className="text-3xl font-bold tracking-[-0.03em] text-[#0b1530] sm:text-[2.5rem]">Cómo funciona</h2>
             </div>
             <p className="max-w-[440px] text-[15px] leading-6 text-slate-600">
               Un proceso simple, pensado para que empresas de la industria puedan conectarse y hacer negocios más rápido.
             </p>
           </Reveal>
 
-          {/* En mobile los pasos son un carrusel deslizable; desde sm, grilla. */}
-          <div className="-mx-6 mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-2 [scrollbar-width:none] sm:mx-0 sm:grid sm:grid-cols-2 sm:gap-8 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-4 lg:gap-6">
+          {/* En mobile los pasos van uno debajo del otro, unidos por una línea;
+              desde sm, grilla de 2 y desde lg de 4. */}
+          <div className="relative mt-10 grid gap-12 sm:grid-cols-2 sm:gap-8 lg:grid-cols-4 lg:gap-6">
+            <span aria-hidden="true" className="absolute bottom-10 left-[22px] top-14 w-px bg-[linear-gradient(180deg,#c4d4ff,#c4d4ff_70%,transparent)] sm:hidden" />
             {STEPS.map((step, index) => (
-              <Reveal key={step.n} className="group relative flex w-[78%] shrink-0 snap-start flex-col sm:w-auto" delay={index * 120}>
+              <Reveal key={step.n} className="group relative flex flex-col pl-14 sm:pl-0" delay={index * 120}>
+                {/* Mobile: número en un círculo sobre la línea del recorrido. */}
+                <span className="absolute left-0 top-0 flex h-11 w-11 items-center justify-center rounded-full bg-[#1f5bff] text-[17px] font-bold text-white shadow-[0_8px_18px_rgba(31,91,255,0.3)] ring-4 ring-white sm:hidden">
+                  {step.n}
+                </span>
                 <div className="flex items-end gap-3">
-                  <span className="text-[64px] font-bold leading-[0.8] tracking-[-0.04em] text-[#dfe8ff] transition duration-300 group-hover:text-[#b9cbff]">
+                  <span className="hidden text-[64px] font-bold leading-[0.8] tracking-[-0.04em] text-[#dfe8ff] transition duration-300 group-hover:text-[#b9cbff] sm:inline">
                     {step.n}
                   </span>
-                  <Icon name={step.icon} className="mb-1 h-8 w-8 text-[#1f5bff] transition duration-300 group-hover:-translate-y-1" />
+                  <Icon name={step.icon} className="h-7 w-7 text-[#1f5bff] transition duration-300 group-hover:-translate-y-1 sm:mb-1 sm:h-8 sm:w-8" />
                 </div>
-                <h3 className="mt-3 text-[19px] font-bold text-[#0b1530]">{step.title}</h3>
-                <p className="mt-1.5 min-h-[72px] text-[14px] leading-6 text-slate-500">{step.text}</p>
+                <h3 className="mt-2 text-[19px] font-bold text-[#0b1530] sm:mt-3">{step.title}</h3>
+                <p className="mt-1.5 text-[14px] leading-6 text-slate-500 sm:min-h-[72px]">{step.text}</p>
                 <div className="mt-4 transition duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_18px_40px_rgba(15,23,42,0.12)]">
                   <StepVisual step={step.n} />
                 </div>
@@ -307,8 +276,7 @@ export default function ComoFuncionaPage() {
       <section className="bg-[#f5f7fc]">
         <div className="mx-auto grid w-full max-w-[1440px] items-center gap-12 px-6 py-16 lg:grid-cols-[0.85fr_1.15fr] lg:px-12 lg:py-20">
           <Reveal>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Por qué ATAR</p>
-            <h2 className="mt-3 text-3xl font-bold leading-[1.1] tracking-[-0.03em] text-[#0b1530] sm:text-[2.5rem]">
+            <h2 className="text-3xl font-bold leading-[1.1] tracking-[-0.03em] text-[#0b1530] sm:text-[2.5rem]">
               Más que un marketplace, <br />
               <span className="text-[#1f5bff]">una red industrial.</span>
             </h2>
@@ -337,13 +305,12 @@ export default function ComoFuncionaPage() {
       <section className="bg-white">
         <div className="mx-auto grid w-full max-w-[1440px] gap-5 px-6 py-14 lg:grid-cols-2 lg:px-12 lg:py-16">
           <Reveal className="group relative isolate flex min-h-[320px] overflow-hidden rounded-[16px] bg-[linear-gradient(110deg,#f3f6fd_0%,#f3f6fd_45%,#e3ebff_100%)] p-8 sm:p-10">
-            <div className="pointer-events-none absolute bottom-0 right-0 top-0 hidden w-[48%] sm:block">
-              <Image alt="" className="object-cover object-center transition duration-500 group-hover:scale-105" fill sizes="340px" src="/bigbags.png" />
+            <div className="pointer-events-none absolute bottom-0 right-0 top-0 hidden w-[48%] overflow-hidden sm:block">
+              <Image alt="" className="object-cover object-[82%_center] transition duration-500 group-hover:scale-105" fill sizes="(min-width:1024px) 24vw, 48vw" src="/card-compradores.png" />
               <div className="absolute inset-0 bg-[linear-gradient(90deg,#f3f6fd_0%,rgba(243,246,253,0.4)_40%,transparent_70%)]" />
             </div>
             <div className="relative z-10 max-w-[360px]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Para compradores</p>
-              <h3 className="mt-3 text-[1.8rem] font-bold leading-[1.12] tracking-[-0.03em] text-[#0b1530]">Encontrá lo que necesitás para producir.</h3>
+              <h3 className="text-[1.8rem] font-bold leading-[1.12] tracking-[-0.03em] text-[#0b1530]">Encontrá lo que necesitás para producir.</h3>
               <ul className="mt-5 space-y-2.5">
                 <CheckItem>Accedé a proveedores verificados</CheckItem>
                 <CheckItem>Compará productos y especificaciones</CheckItem>
@@ -360,13 +327,12 @@ export default function ComoFuncionaPage() {
           </Reveal>
 
           <Reveal className="group relative isolate flex min-h-[320px] overflow-hidden rounded-[16px] bg-[#0b1530] p-8 text-white sm:p-10" delay={120}>
-            <div className="pointer-events-none absolute bottom-0 right-0 top-0 hidden w-[55%] sm:block">
-              <Image alt="" className="object-cover object-[20%_center] transition duration-500 group-hover:scale-105" fill sizes="380px" src="/heroatarweb.png" />
+            <div className="pointer-events-none absolute bottom-0 right-0 top-0 hidden w-[55%] overflow-hidden sm:block">
+              <Image alt="" className="object-cover object-[78%_center] transition duration-500 group-hover:scale-105" fill sizes="(min-width:1024px) 28vw, 55vw" src="/card-proveedores.png" />
               <div className="absolute inset-0 bg-[linear-gradient(90deg,#0b1530_0%,rgba(11,21,48,0.55)_40%,rgba(11,21,48,0.1)_100%)]" />
             </div>
             <div className="relative z-10 max-w-[360px]">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/65">Para proveedores</p>
-              <h3 className="mt-3 text-[1.8rem] font-bold leading-[1.12] tracking-[-0.03em]">Llevá tus productos a más clientes.</h3>
+              <h3 className="text-[1.8rem] font-bold leading-[1.12] tracking-[-0.03em]">Llevá tus productos a más clientes.</h3>
               <ul className="mt-5 space-y-2.5">
                 <CheckItem dark>Publicá tu catálogo de productos</CheckItem>
                 <CheckItem dark>Recibí solicitudes de cotización</CheckItem>
@@ -393,8 +359,7 @@ export default function ComoFuncionaPage() {
         <div className="absolute inset-0 bg-[#0b1530]/55 lg:hidden" />
         <div className="relative z-10 mx-auto grid w-full max-w-[1440px] items-center gap-10 px-6 py-16 lg:grid-cols-[1fr_0.8fr] lg:px-12 lg:py-20">
           <Reveal>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/70">El proceso en acción</p>
-            <h2 className="mt-4 text-3xl font-bold leading-[1.1] tracking-[-0.03em] sm:text-[2.6rem]">
+            <h2 className="text-3xl font-bold leading-[1.1] tracking-[-0.03em] sm:text-[2.6rem]">
               Conectando <br />
               una industria real.
             </h2>
@@ -422,8 +387,7 @@ export default function ComoFuncionaPage() {
         <div className="mx-auto w-full max-w-[1440px] px-6 py-16 lg:px-12 lg:py-20">
           <Reveal className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Una red que crece</p>
-              <h2 className="mt-3 text-3xl font-bold tracking-[-0.03em] text-[#0b1530] sm:text-[2.5rem]">La industria confía en ATAR.</h2>
+              <h2 className="text-3xl font-bold tracking-[-0.03em] text-[#0b1530] sm:text-[2.5rem]">La industria confía en ATAR.</h2>
             </div>
             <p className="max-w-[420px] text-[15px] leading-6 text-slate-600">
               Cada día más empresas se suman para fortalecer la cadena de valor de la rafia.
@@ -453,8 +417,7 @@ export default function ComoFuncionaPage() {
         <div className="absolute inset-0 bg-[linear-gradient(90deg,#0b1530_0%,#0b1530_35%,rgba(11,21,48,0.75)_55%,rgba(11,21,48,0.35)_100%)]" />
         <div className="absolute inset-0 bg-[#0b1530]/55 lg:hidden" />
         <Reveal className="relative z-10 mx-auto w-full max-w-[1440px] px-6 py-16 lg:px-12 lg:py-20">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/70">Sumate a la red de la industria</p>
-          <h2 className="mt-4 text-3xl font-bold tracking-[-0.03em] sm:text-[2.8rem]">Empezá hoy en ATAR.</h2>
+          <h2 className="text-3xl font-bold tracking-[-0.03em] sm:text-[2.8rem]">Empezá hoy en ATAR.</h2>
           <p className="mt-4 max-w-[480px] text-base leading-7 text-white/75">
             Ya seas comprador o proveedor, creá tu cuenta y empezá a formar parte de la red comercial de la industria de la
             rafia.

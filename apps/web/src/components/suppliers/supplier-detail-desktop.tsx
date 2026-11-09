@@ -4,6 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { type SupplierDirectoryRecord } from '@/lib/atar-api';
+import { supplierLogoUrl } from '@/lib/supplier-logos';
 import { Icon, Rows, buildSupplierView, type Product, type Variant } from './supplier-detail-mobile';
 
 /**
@@ -113,16 +114,16 @@ export default function SupplierDetailDesktop({
     <div ref={contentRef} className={isPreview ? '' : '[scrollbar-width:thin] xl:min-h-0 xl:overflow-y-auto'}>
       {/* ------------------------------------------------- portada + identidad */}
       <header data-tour="supplier-header" className="hidden bg-white lg:block">
-        <div className="relative h-[130px] bg-slate-200 2xl:h-[170px]">
+        <div className="relative h-[190px] bg-slate-200 2xl:h-[230px]">
           <Image alt="" className="object-cover" fill priority sizes="100vw" src={cover} />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/25 to-transparent" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(11,21,51,0.05)_0%,rgba(11,21,51,0.35)_100%)]" />
         </div>
 
         <div className="flex items-start gap-5 px-6">
           <div className="relative -mt-10 flex h-[112px] w-[112px] shrink-0 items-center justify-center overflow-hidden rounded-[18px] border border-slate-100 bg-white p-3 shadow-[0_10px_28px_rgba(15,23,42,0.12)]">
-            {supplier.logoUrl ? (
+            {supplierLogoUrl(supplier) ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img alt={supplier.name} className="max-h-full max-w-full object-contain" src={supplier.logoUrl} />
+              <img alt={supplier.name} className="max-h-full max-w-full object-contain" src={supplierLogoUrl(supplier) ?? undefined} />
             ) : (
               <span className="text-[28px] font-bold tracking-tight text-indigo-600">{supplier.name.slice(0, 2).toUpperCase()}</span>
             )}
@@ -191,7 +192,7 @@ export default function SupplierDetailDesktop({
                   Contactar
                 </button>
                 <button
-                  className="inline-flex h-11 items-center rounded-xl bg-indigo-600 px-5 text-[14px] font-semibold text-white shadow-[0_10px_24px_rgba(79,70,229,0.28)] transition hover:bg-indigo-500"
+                  className="inline-flex h-11 items-center rounded-xl bg-indigo-600 px-5 text-[14px] font-semibold text-white shadow-[0_10px_24px_rgba(31,91,255,0.28)] transition hover:bg-indigo-500"
                   onClick={() => {
                     onToggleQuote();
                     // El formulario se abre arriba del contenido: se sube para que quede a la vista.

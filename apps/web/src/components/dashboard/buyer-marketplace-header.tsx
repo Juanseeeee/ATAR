@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { RegionButton } from '@/components/region/region-provider';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -151,7 +152,7 @@ export default function BuyerMarketplaceHeader({
       >
         Inicio
         {pathname === '/dashboard/comprador' ? (
-          <span className={`absolute ${underline} left-0 h-[2px] w-full rounded-full ${marketplace ? 'bg-white' : 'bg-[#4f46ff]'}`} />
+          <span className={`absolute ${underline} left-0 h-[2px] w-full rounded-full ${marketplace ? 'bg-white' : 'bg-[#1f5bff]'}`} />
         ) : null}
       </Link>
 
@@ -166,7 +167,7 @@ export default function BuyerMarketplaceHeader({
       >
         Panel
         {pathname?.startsWith('/dashboard/comprador/panel') ? (
-          <span className={`absolute ${underline} left-0 h-[2px] w-full rounded-full ${marketplace ? 'bg-white' : 'bg-[#4f46ff]'}`} />
+          <span className={`absolute ${underline} left-0 h-[2px] w-full rounded-full ${marketplace ? 'bg-white' : 'bg-[#1f5bff]'}`} />
         ) : null}
       </Link>
 
@@ -181,7 +182,7 @@ export default function BuyerMarketplaceHeader({
             href={item.href}
           >
             {item.label}
-            {isActive ? <span className={`absolute ${underline} left-0 h-[2px] w-full rounded-full ${marketplace ? 'bg-white' : 'bg-[#4f46ff]'}`} /> : null}
+            {isActive ? <span className={`absolute ${underline} left-0 h-[2px] w-full rounded-full ${marketplace ? 'bg-white' : 'bg-[#1f5bff]'}`} /> : null}
           </Link>
         );
       })}
@@ -189,7 +190,7 @@ export default function BuyerMarketplaceHeader({
   );
 
   return (
-    <header className={`hidden border-b lg:block ${marketplace ? 'border-[#0f2fb8] bg-[#1847ff]' : 'border-slate-300 bg-white'}`}>
+    <header className={`sticky top-0 z-40 hidden border-b lg:block ${marketplace ? 'border-[#0f2fb8] bg-[#1847ff]' : 'border-slate-300 bg-white'}`}>
       <div
         className={`mx-auto flex items-center justify-between gap-5 px-4 py-2.5 ${
           wide ? 'max-w-none xl:px-6' : 'max-w-[1320px]'
@@ -215,7 +216,7 @@ export default function BuyerMarketplaceHeader({
 
           <Link
             className={`inline-flex h-9 items-center gap-2 rounded-xl px-3.5 text-[13px] font-semibold transition ${
-              marketplace ? 'bg-white text-[#1238d6] shadow-[0_2px_0_rgba(8,24,110,0.35)] hover:bg-[#eef2ff]' : 'bg-[#1847ff] text-white hover:bg-[#0f3ff5]'
+              marketplace ? 'bg-white text-[#1238d6] shadow-[0_2px_0_rgba(8,24,110,0.35)] hover:bg-[#eef3ff]' : 'bg-[#1847ff] text-white hover:bg-[#0f3ff5]'
             }`}
             data-tour="buyer-cta"
             href="/dashboard/comprador/solicitudes/nueva"
@@ -225,6 +226,8 @@ export default function BuyerMarketplaceHeader({
             </svg>
             {marketplace ? 'Solicitar cotización' : 'Nueva solicitud'}
           </Link>
+
+          <RegionButton compact tone={marketplace ? 'dark' : 'light'} />
 
           <Link
             className={`relative inline-flex h-8.5 w-8.5 items-center justify-center rounded-xl border transition ${iconButton}`}
@@ -239,7 +242,7 @@ export default function BuyerMarketplaceHeader({
           >
             <Icon name="bell" />
             {notificationCount > 0 ? (
-              <span className={`absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold ${marketplace ? 'bg-white text-[#1238d6]' : 'bg-[#4f46ff] text-white'}`}>
+              <span className={`absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-semibold ${marketplace ? 'bg-white text-[#1238d6]' : 'bg-[#1f5bff] text-white'}`}>
                 {Math.min(notificationCount, 9)}
               </span>
             ) : null}
@@ -252,7 +255,7 @@ export default function BuyerMarketplaceHeader({
               onClick={() => setIsAccountOpen((current) => !current)}
               type="button"
             >
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#eef2ff] text-[11px] font-bold text-[#4f46ff]">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#eef3ff] text-[11px] font-bold text-[#1f5bff]">
                 {profileInitials}
               </span>
               <div className="leading-tight text-left">
@@ -267,7 +270,7 @@ export default function BuyerMarketplaceHeader({
             {isAccountOpen ? (
               <div className="absolute right-0 top-[calc(100%+12px)] z-50 w-[260px] rounded-2xl border border-slate-300 bg-white p-2 shadow-[0_24px_60px_rgba(15,23,42,0.12)]">
                 <div className="flex items-center gap-3 rounded-xl bg-[#eef1f7] px-3 py-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eef2ff] text-xs font-bold text-[#4f46ff]">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#eef3ff] text-xs font-bold text-[#1f5bff]">
                     {profileInitials}
                   </span>
                   <div className="min-w-0">

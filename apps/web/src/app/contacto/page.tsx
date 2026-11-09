@@ -41,7 +41,6 @@ const primaryCta =
   'inline-flex h-12 items-center justify-center gap-2 rounded-[10px] bg-[#1f5bff] px-6 text-sm font-semibold text-white shadow-[0_14px_36px_rgba(31,91,255,0.35)] transition hover:-translate-y-0.5 hover:bg-[#194ee6]';
 const field =
   'h-12 w-full rounded-[10px] border border-slate-300 bg-white px-4 text-[15px] text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-[#1f5bff] focus:ring-4 focus:ring-[#1f5bff]/15';
-const eyebrow = 'text-[11px] font-semibold uppercase tracking-[0.24em]';
 
 /* ============================ PÁGINA ============================ */
 
@@ -58,8 +57,7 @@ export default function ContactoPage() {
 
         <div className="relative z-10 mx-auto flex min-h-[480px] w-full max-w-[1440px] items-center px-6 py-16 lg:min-h-[540px] lg:px-12">
           <div className="max-w-[680px]">
-            <p className={`animate-fade-up ${eyebrow} text-white/80`}>Estamos para ayudarte</p>
-            <h1 className="animate-fade-up mt-4 text-[2.5rem] font-bold leading-[1.05] tracking-[-0.04em] [animation-delay:100ms] sm:text-[3.3rem] xl:text-[3.8rem]">
+            <h1 className="animate-fade-up text-[2.5rem] font-bold leading-[1.05] tracking-[-0.04em] [animation-delay:100ms] sm:text-[3.3rem] xl:text-[3.8rem]">
               Hablemos de cómo ATAR puede <span className="text-[#3b7bff]">impulsar tu industria.</span>
             </h1>
             <p className="animate-fade-up mt-5 max-w-[540px] text-[17px] leading-7 text-white/80 [animation-delay:200ms]">
@@ -87,8 +85,7 @@ export default function ContactoPage() {
       <section className="bg-white">
         <div className="mx-auto w-full max-w-[1440px] px-6 py-16 lg:px-12 lg:py-20">
           <Reveal>
-            <p className={`${eyebrow} text-slate-500`}>Canales de contacto</p>
-            <h2 className="mt-3 text-3xl font-bold tracking-[-0.03em] text-[#0b1530] sm:text-[2.5rem]">Elegí cómo querés contactarnos</h2>
+            <h2 className="text-3xl font-bold tracking-[-0.03em] text-[#0b1530] sm:text-[2.5rem]">Elegí cómo querés contactarnos</h2>
           </Reveal>
           <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {CONTACT_OPTIONS.map((option, index) => (
@@ -117,8 +114,7 @@ export default function ContactoPage() {
       <section className="scroll-mt-6 bg-[linear-gradient(180deg,#f3f6fd_0%,#ffffff_100%)]" id="consulta">
         <div className="mx-auto grid w-full max-w-[1440px] gap-6 px-6 py-16 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)] lg:px-12 lg:py-20">
           <Reveal className="rounded-[16px] border border-slate-300 bg-white p-6 shadow-[0_10px_30px_rgba(15,23,42,0.06)] sm:p-8">
-            <p className={`${eyebrow} text-slate-500`}>Formulario</p>
-            <h2 className="mt-3 text-[1.9rem] font-bold tracking-[-0.03em] text-[#0b1530]">Enviános tu consulta</h2>
+            <h2 className="text-[1.9rem] font-bold tracking-[-0.03em] text-[#0b1530]">Enviános tu consulta</h2>
             <p className="mt-2 text-[15px] leading-6 text-slate-600">Completá el formulario y te contactaremos lo antes posible.</p>
 
             <form className="mt-7 space-y-5">
@@ -170,8 +166,7 @@ export default function ContactoPage() {
 
           <div className="flex flex-col gap-6">
             <Reveal className="rounded-[16px] bg-[#0b1530] p-6 text-white sm:p-8" delay={120}>
-              <p className={`${eyebrow} text-[#8fb0ff]`}>Dónde estamos</p>
-              <h3 className="mt-3 text-[1.5rem] font-bold tracking-[-0.02em]">Oficinas centrales</h3>
+              <h3 className="text-[1.5rem] font-bold tracking-[-0.02em]">Oficinas centrales</h3>
               <ul className="mt-6 space-y-4 text-[15px] text-white/90">
                 <li className="flex gap-3">
                   <Icon className="mt-0.5 h-5 w-5 shrink-0 text-[#5b8dff]" name="pin" />
@@ -205,7 +200,6 @@ export default function ContactoPage() {
                 <Image alt="" className="origin-bottom-right scale-[1.3] object-contain object-right-bottom mix-blend-multiply" fill sizes="260px" src="/bigbag.png" />
               </div>
               <div className="relative max-w-[300px]">
-                <p className={`${eyebrow} text-slate-500`}>Conectamos industrias</p>
                 <p className="mt-3 text-[1.5rem] font-bold leading-[1.15] tracking-[-0.02em] text-[#0b1530]">Con oportunidades reales.</p>
                 <p className="mt-3 text-[14px] leading-6 text-slate-600">
                   ATAR es la plataforma líder en abastecimiento de bolsas industriales en Latinoamérica.

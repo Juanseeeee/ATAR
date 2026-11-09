@@ -161,15 +161,15 @@ export default function BuyerBottomNav({ notificationCount = 0 }: { notification
                 href={tab.href}
                 className="relative flex flex-1 flex-col items-center gap-1 py-1"
               >
-                <span className={active ? 'text-[#4f46ff]' : 'text-slate-400'}>
+                <span className={active ? 'text-[#1f5bff]' : 'text-slate-400'}>
                   <Icon name={tab.icon} className="h-6 w-6" />
                 </span>
                 {tab.badge ? (
-                  <span className="absolute right-[22%] top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#4f46ff] px-1 text-[9px] font-bold text-white">
+                  <span className="absolute right-[22%] top-0 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#1f5bff] px-1 text-[9px] font-bold text-white">
                     {tab.badge}
                   </span>
                 ) : null}
-                <span className={`text-center text-[9px] font-semibold leading-tight ${active ? 'text-[#4f46ff]' : 'text-slate-500'}`}>
+                <span className={`text-center text-[9px] font-semibold leading-tight ${active ? 'text-[#1f5bff]' : 'text-slate-500'}`}>
                   {tab.label}
                 </span>
               </Link>
@@ -222,14 +222,14 @@ export default function BuyerBottomNav({ notificationCount = 0 }: { notification
                     href={item.href}
                     onClick={() => setOpen(false)}
                     className={`flex items-center justify-between gap-3 rounded-2xl px-4 py-3 ${
-                      active ? 'bg-[#eef2ff]' : 'active:bg-slate-50'
+                      active ? 'bg-[#eef3ff]' : 'active:bg-slate-50'
                     }`}
                   >
                     <span className="flex items-center gap-3">
-                      <span className={active ? 'text-[#4f46ff]' : 'text-slate-500'}>
+                      <span className={active ? 'text-[#1f5bff]' : 'text-slate-500'}>
                         <Icon name={item.icon} className="h-5 w-5" />
                       </span>
-                      <span className={`text-[15px] font-semibold ${active ? 'text-[#4f46ff]' : 'text-slate-800'}`}>
+                      <span className={`text-[15px] font-semibold ${active ? 'text-[#1f5bff]' : 'text-slate-800'}`}>
                         {item.label}
                       </span>
                     </span>
