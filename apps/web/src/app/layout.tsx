@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { AuthProvider } from "@/components/auth/auth-provider";
 import { WorkspaceProvider } from "@/components/auth/workspace-provider";
+import { RegionProvider } from "@/components/region/region-provider";
 import SiteHeader from "@/components/layout/site-header";
 import SiteFooter from "@/components/layout/site-footer";
 import "./globals.css";
@@ -45,13 +46,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className={`${inter.variable} h-full overflow-x-hidden antialiased`}>
-      <body className="min-h-full flex flex-col overflow-x-hidden bg-white text-slate-950 pt-[env(safe-area-inset-top)]">
+    <html lang="es" className={`${inter.variable} h-full overflow-x-clip antialiased`}>
+      <body className="min-h-full flex flex-col overflow-x-clip bg-white text-slate-950 pt-[env(safe-area-inset-top)]">
         <AuthProvider>
           <WorkspaceProvider>
-            <SiteHeader />
-            <div className="flex-1">{children}</div>
-            <SiteFooter />
+            {/* País elegido: define cómo se nombran las categorías en toda la web. */}
+            <RegionProvider>
+              <SiteHeader />
+              <div className="flex-1">{children}</div>
+              <SiteFooter />
+            </RegionProvider>
           </WorkspaceProvider>
         </AuthProvider>
       </body>

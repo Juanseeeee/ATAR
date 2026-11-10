@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { type ReactNode } from 'react';
 import { useSupplierWorkspaceCounters } from '@/lib/dashboard-hooks';
 import { type WebSession } from '@/lib/session';
+import { RegionButton } from '@/components/region/region-provider';
 import CompanySwitcher from './company-switcher';
 import SupplierAccountMenu from './supplier-account-menu';
 import DashboardSidebar from './dashboard-sidebar';
@@ -129,6 +130,9 @@ export default function SupplierDashboardShell({
                 >
                   Invitar a un miembro
                 </button>
+                <span className="hidden sm:inline-flex">
+                  <RegionButton />
+                </span>
                 <Link
                   className="relative hidden h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-50 sm:inline-flex"
                   href="/dashboard/proveedor/mensajes"

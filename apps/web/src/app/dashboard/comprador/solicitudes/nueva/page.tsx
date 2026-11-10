@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
+import { useRegion } from '@/components/region/region-provider';
 import CompanyLogo from '@/components/dashboard/company-logo';
 import {
   atarApi,
@@ -707,6 +708,8 @@ const fieldInput =
   'h-11 w-full rounded-[10px] border border-[#dfe4f0] bg-white px-3.5 text-[14px] text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#3f3df5] focus:ring-4 focus:ring-[#3f3df5]/10';
 
 export default function BuyerNewRequestWizardPage() {
+  // Solo cambia lo que se muestra: el valor guardado sigue siendo el nombre canónico.
+  const { categoryName } = useRegion();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { session } = useAuth();
@@ -1877,7 +1880,7 @@ export default function BuyerNewRequestWizardPage() {
                           </span>
                         ) : null}
                       </div>
-                      <p className="shrink-0 truncate px-0.5 pb-0.5 pt-1.5 text-[11px] font-semibold text-slate-900 sm:px-1 sm:pt-2 sm:text-[12px]">{option.label}</p>
+                      <p className="shrink-0 truncate px-0.5 pb-0.5 pt-1.5 text-[11px] font-semibold text-slate-900 sm:px-1 sm:pt-2 sm:text-[12px]">{categoryName(option.label)}</p>
                     </button>
                   );
                 })
@@ -1909,7 +1912,7 @@ export default function BuyerNewRequestWizardPage() {
                     >
                       {requestCategories.map((option) => (
                         <option key={option.id} value={option.label}>
-                          {option.label}
+                          {categoryName(option.label)}
                         </option>
                       ))}
                     </select>
@@ -1979,7 +1982,7 @@ export default function BuyerNewRequestWizardPage() {
                         <Image alt="" className="object-cover" fill sizes="340px" src={composerCategory.imageSrc} />
                       ) : null}
                       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/75 to-transparent px-3 pb-2.5 pt-6">
-                        <p className="truncate text-[13px] font-semibold text-white">{composerCategory.label}</p>
+                        <p className="truncate text-[13px] font-semibold text-white">{categoryName(composerCategory.label)}</p>
                         <p className="text-[11px] leading-4 text-white/85 [@container(max-height:120px)]:hidden">
                           Medidas, color y terminaciones se completan en el paso de especificaciones.
                         </p>

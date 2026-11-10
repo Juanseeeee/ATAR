@@ -37,7 +37,7 @@ const PROFILE_OPTIONS = [
     label: 'Proveedor',
     tagline: 'Quiero vender',
     summary: 'Para empresas proveedoras. Es la cuenta principal: recibís solicitudes, cotizás y administrás a tu equipo de vendedores.',
-    tone: { row: 'bg-[#f3f1ff]', active: 'bg-[#ebe8ff] shadow-[inset_4px_0_0_#6366f1]', icon: 'bg-[#e2ddff] text-indigo-600', text: 'text-indigo-600' },
+    tone: { row: 'bg-[#eef1fb]', active: 'bg-[#e2e7f8] shadow-[inset_4px_0_0_#3450b0]', icon: 'bg-[#dde3f7] text-[#3450b0]', text: 'text-[#3450b0]' },
     can: [
       'Ver todas las solicitudes que recibe la empresa',
       'Asignar y reasignar solicitudes a tus vendedores',
@@ -64,6 +64,49 @@ const PROFILE_OPTIONS = [
 type ProfileValue = (typeof PROFILE_OPTIONS)[number]['value'];
 
 type Mode = 'login' | 'register';
+
+/** Sin acentos, mayúsculas, puntuación ni la forma societaria (SA, SRL...). */
+function companyKey(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\b(s ?a ?s?|s ?r ?l|s ?a ?c ?i|s ?de ?r ?l|ltda|inc|cia)\b/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function editDistance(a: string, b: string) {
+  const row = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    let previous = row[0];
+    row[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const current = row[j];
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1));
+      previous = current;
+    }
+  }
+  return row[b.length];
+}
+
+/**
+ * La empresa solo se sugiere cuando lo escrito es casi su nombre completo
+ * (un error de tipeo o la forma societaria no importan): así no se lista el
+ * directorio entero a cualquiera que se registre.
+ */
+function isNearMatch(query: string, name: string) {
+  const q = companyKey(query);
+  const target = companyKey(name);
+  if (q.length < 3 || !target) {
+    return false;
+  }
+  if (target.includes(q) && q.length >= target.length * 0.7) {
+    return true;
+  }
+  return target.length >= 5 && editDistance(q, target) <= 2;
+}
 
 function ProfileIcon({ value }: { value: ProfileValue }) {
   const common = {
@@ -136,7 +179,7 @@ export default function AccessPanel() {
   });
   const [companySearch, setCompanySearch] = useState('');
   const [companies, setCompanies] = useState<SupplierDirectoryCompany[]>([]);
-  const [loadingCompanies, setLoadingCompanies] = useState(false);
+  const [, setLoadingCompanies] = useState(false);
 
   const isSeller = form.role === 'SELLER';
 
@@ -147,9 +190,12 @@ export default function AccessPanel() {
     return form.role === 'SUPPLIER' ? 'SUPPLIER' : 'BUYER';
   }, [form.hybrid, form.role]);
 
+  const matchingCompanies = companies.filter((company) => isNearMatch(companySearch, company.name)).slice(0, 3);
+
   const selectedProfile = PROFILE_OPTIONS.find((option) => option.value === form.role) ?? PROFILE_OPTIONS[0];
 
-  // Empresas disponibles para el vendedor. Se busca con debounce simple.
+  // Empresas disponibles para el vendedor: se cargan una vez y se filtran acá,
+  // así un error de tipeo o la forma societaria no dejan afuera a la empresa.
   useEffect(() => {
     if (mode !== 'register' || !isSeller) {
       return;
@@ -159,7 +205,7 @@ export default function AccessPanel() {
     const timeoutId = window.setTimeout(async () => {
       try {
         setLoadingCompanies(true);
-        const result = await atarApi.getSupplierDirectory(companySearch);
+        const result = await atarApi.getSupplierDirectory('');
         if (!cancelled) {
           setCompanies(result);
         }
@@ -172,13 +218,13 @@ export default function AccessPanel() {
           setLoadingCompanies(false);
         }
       }
-    }, 250);
+    }, 0);
 
     return () => {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [companySearch, isSeller, mode]);
+  }, [isSeller, mode]);
 
   useEffect(() => {
     // Solo redirigimos si hay una sesión realmente guardada. Si un dashboard
@@ -266,13 +312,13 @@ export default function AccessPanel() {
     <>
       {/* El alta usa mas ancho para que el formulario completo entre sin scroll. */}
       <div
-        className={`mx-auto w-full ${mode === 'register' ? 'max-w-[760px]' : 'max-w-[420px]'}`}
+        className={`mx-auto w-full ${mode === 'register' ? 'max-w-[760px]' : 'max-w-[440px]'}`}
       >
         <div className="flex flex-col items-center text-center">
-          <h1 className="text-xl font-semibold tracking-tight text-slate-950">
+          <h1 className="text-[26px] font-bold tracking-[-0.03em] text-[#0b1533]">
             {mode === 'login' ? 'Bienvenido nuevamente' : 'Creá tu cuenta'}
           </h1>
-          <p className="mt-1 text-xs text-slate-500">
+          <p className="mt-1.5 text-sm text-slate-500">
             {mode === 'login'
               ? 'Ingresá a tu cuenta para continuar.'
               : 'Completá tus datos para continuar.'}
@@ -369,7 +415,7 @@ export default function AccessPanel() {
               <label className="space-y-2 text-xs font-semibold text-slate-700">
                 <span>Nombre</span>
                 <input
-                  className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-950 outline-none transition focus:border-indigo-500"
+                  className="h-11 w-full rounded-[14px] border border-slate-200 bg-white px-4 text-sm text-slate-950 outline-none transition focus:border-indigo-500"
                   onChange={(event) => updateField('firstName', event.target.value)}
                   placeholder="Juan"
                   required
@@ -379,7 +425,7 @@ export default function AccessPanel() {
               <label className="space-y-2 text-xs font-semibold text-slate-700">
                 <span>Apellido</span>
                 <input
-                  className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-950 outline-none transition focus:border-indigo-500"
+                  className="h-11 w-full rounded-[14px] border border-slate-200 bg-white px-4 text-sm text-slate-950 outline-none transition focus:border-indigo-500"
                   onChange={(event) => updateField('lastName', event.target.value)}
                   placeholder="Pérez"
                   required
@@ -391,58 +437,53 @@ export default function AccessPanel() {
                   <p className="text-xs font-semibold text-slate-700">
                     ¿Para qué empresa vas a vender?
                   </p>
-                  <input
-                    className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-950 outline-none transition focus:border-indigo-500"
-                    onChange={(event) => setCompanySearch(event.target.value)}
-                    placeholder="Buscá tu empresa por nombre"
-                    value={companySearch}
-                  />
+                  {/* Las coincidencias se muestran flotando debajo del campo, sin
+                      empujar el resto del formulario. */}
+                  <div className="relative">
+                    <input
+                      className={`h-11 w-full rounded-[14px] border bg-white px-4 pr-10 text-sm text-slate-950 outline-none transition focus:border-indigo-500 ${
+                        form.companyId ? 'border-indigo-500' : 'border-slate-200'
+                      }`}
+                      onChange={(event) => {
+                        setCompanySearch(event.target.value);
+                        if (form.companyId) {
+                          updateField('companyId', '');
+                        }
+                      }}
+                      placeholder="Escribí el nombre de tu empresa"
+                      value={companySearch}
+                    />
+                    {form.companyId ? (
+                      <svg aria-hidden="true" className="pointer-events-none absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                        <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" />
+                      </svg>
+                    ) : null}
 
-                  <div className="max-h-44 space-y-1.5 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-1.5">
-                    {loadingCompanies ? (
-                      <p className="px-3 py-4 text-center text-[11px] text-slate-500">Buscando...</p>
-                    ) : companies.length === 0 ? (
-                      <p className="px-3 py-4 text-center text-[11px] leading-4 text-slate-500">
-                        No encontramos empresas con ese nombre. Tu empresa tiene que estar registrada
-                        en ATAR antes de que te sumes al equipo.
-                      </p>
-                    ) : (
-                      companies.map((company) => {
-                        const isSelected = form.companyId === company.id;
-
-                        return (
+                    {!form.companyId && matchingCompanies.length > 0 ? (
+                      <div className="absolute inset-x-0 top-full z-20 mt-1.5 space-y-1 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_16px_40px_rgba(15,23,42,0.12)]">
+                        {matchingCompanies.map((company) => (
                           <button
-                            className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition ${
-                              isSelected ? 'bg-indigo-50' : 'hover:bg-slate-50'
-                            }`}
+                            className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left transition hover:bg-slate-50"
                             key={company.id}
-                            onClick={() => updateField('companyId', company.id)}
+                            onClick={() => {
+                              updateField('companyId', company.id);
+                              setCompanySearch(company.name);
+                            }}
                             type="button"
                           >
-                            <span
-                              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold ${
-                                isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[10px] font-bold text-slate-600">
                               {company.name.slice(0, 2).toUpperCase()}
                             </span>
                             <span className="min-w-0 flex-1">
-                              <span className="block truncate text-xs font-semibold text-slate-950">
-                                {company.name}
-                              </span>
+                              <span className="block truncate text-xs font-semibold text-slate-950">{company.name}</span>
                               <span className="block truncate text-[10px] text-slate-500">
                                 {[company.city, company.country].filter(Boolean).join(', ')}
                               </span>
                             </span>
-                            {isSelected ? (
-                              <svg aria-hidden="true" className="h-4 w-4 shrink-0 text-indigo-600" fill="none" viewBox="0 0 24 24">
-                                <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" />
-                              </svg>
-                            ) : null}
                           </button>
-                        );
-                      })
-                    )}
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
 
                   <p className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] leading-4 text-amber-800">
@@ -454,7 +495,7 @@ export default function AccessPanel() {
                 <label className="space-y-2 text-xs font-semibold text-slate-700 sm:col-span-2">
                   <span>{form.role === 'SUPPLIER' ? 'Nombre de tu empresa' : 'Empresa'}</span>
                   <input
-                    className="h-10 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-950 outline-none transition focus:border-indigo-500"
+                    className="h-11 w-full rounded-[14px] border border-slate-200 bg-white px-4 text-sm text-slate-950 outline-none transition focus:border-indigo-500"
                     onChange={(event) => updateField('companyName', event.target.value)}
                     placeholder="Mi empresa industrial"
                     required
@@ -516,7 +557,7 @@ export default function AccessPanel() {
                 </svg>
               </div>
               <input
-                className="h-10 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-950 outline-none transition focus:border-indigo-500"
+                className="h-11 w-full rounded-[14px] border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-950 outline-none transition focus:border-indigo-500"
                 onChange={(event) => updateField('email', event.target.value)}
                 placeholder="ejemplo@empresa.com"
                 required
@@ -548,7 +589,7 @@ export default function AccessPanel() {
                 </svg>
               </div>
               <input
-                className="h-10 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-10 text-sm text-slate-950 outline-none transition focus:border-indigo-500"
+                className="h-11 w-full rounded-[14px] border border-slate-200 bg-white pl-10 pr-10 text-sm text-slate-950 outline-none transition focus:border-indigo-500"
                 minLength={8}
                 onChange={(event) => updateField('password', event.target.value)}
                 placeholder={mode === 'login' ? '••••••••' : 'Mínimo 8 caracteres'}
@@ -605,7 +646,7 @@ export default function AccessPanel() {
           {/* En el alta las dos acciones van en una fila para ganar alto. */}
           <div className={mode === 'register' ? 'grid gap-3 sm:grid-cols-2' : 'space-y-3'}>
           <button
-            className="flex h-10 w-full items-center justify-center gap-3 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 px-5 text-sm font-semibold text-white transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex h-11 w-full items-center justify-center gap-3 rounded-[14px] bg-[#1f5bff] px-5 text-[15px] font-semibold text-white shadow-[0_10px_24px_rgba(31,91,255,0.3)] transition hover:bg-[#194ee6] disabled:cursor-not-allowed disabled:opacity-60"
             disabled={isSubmitting}
             type="submit"
           >
@@ -618,14 +659,15 @@ export default function AccessPanel() {
           </button>
 
           <div className={`relative py-1.5 ${mode === 'register' ? 'hidden' : ''}`}>
-            <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-slate-200" />
-            <div className="relative mx-auto flex h-4 w-4 items-center justify-center rounded-full border border-slate-200 bg-white">
-              <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />
+            <div className="flex items-center gap-3 text-xs text-slate-400">
+              <span className="h-px flex-1 bg-slate-200" />
+              ¿Primera vez en ATAR?
+              <span className="h-px flex-1 bg-slate-200" />
             </div>
           </div>
 
           <button
-            className="flex h-10 w-full items-center justify-center gap-3 rounded-full border border-slate-200 bg-white px-5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            className="flex h-11 w-full items-center justify-center gap-3 rounded-[14px] border border-slate-200 bg-white px-5 text-[15px] font-semibold text-[#0b1533] transition hover:border-[#1f5bff] hover:text-[#1f5bff]"
             onClick={() => setMode((current) => (current === 'login' ? 'register' : 'login'))}
             type="button"
           >
@@ -647,12 +689,12 @@ export default function AccessPanel() {
         <div className="fixed inset-0 z-[120] flex items-center justify-center overflow-hidden bg-[#0a0e1f]">
           {/* Fondo: gradiente limpio + glow sutil */}
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_36%,rgba(91,75,255,0.20),transparent_62%),linear-gradient(180deg,#0b1020_0%,#070a16_100%)]" />
-          <div className="pointer-events-none absolute left-1/2 top-[36%] h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#5b4bff]/25 blur-[130px]" />
+          <div className="pointer-events-none absolute left-1/2 top-[36%] h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#1f5bff]/25 blur-[130px]" />
 
           <div className="relative flex w-full max-w-[400px] flex-col items-center px-8 text-center text-white">
             {/* Logo con anillo giratorio */}
             <div className="relative flex h-24 w-24 items-center justify-center">
-              <span className="absolute inset-0 animate-spin rounded-full border-2 border-white/10 border-t-[#8c82ff] [animation-duration:0.9s]" />
+              <span className="absolute inset-0 animate-spin rounded-full border-2 border-white/10 border-t-[#7da2ff] [animation-duration:0.9s]" />
               <span className="absolute inset-[7px] rounded-full bg-white/[0.04] backdrop-blur-sm" />
               <Image
                 alt="ATAR"
@@ -665,14 +707,14 @@ export default function AccessPanel() {
             </div>
 
             <h2 className="mt-8 text-2xl font-semibold tracking-tight">
-              Ingresando a <span className="text-[#8c82ff]">ATAR</span>
+              Ingresando a <span className="text-[#7da2ff]">ATAR</span>
             </h2>
             <p className="mt-2 text-sm text-slate-400">Preparando tu espacio de trabajo…</p>
 
             {/* Barra de progreso limpia */}
             <div className="mt-8 h-1 w-full max-w-[220px] overflow-hidden rounded-full bg-white/10">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-[#5b4bff] to-[#8c82ff] transition-[width] duration-200 ease-out"
+                className="h-full rounded-full bg-gradient-to-r from-[#1f5bff] to-[#7da2ff] transition-[width] duration-200 ease-out"
                 style={{ width: `${transitionProgress}%` }}
               />
             </div>

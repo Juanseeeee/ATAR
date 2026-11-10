@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import ConversationPanel from '@/components/chat/conversation-panel';
 import SupplierDetailDesktop from './supplier-detail-desktop';
-import SupplierDetailMobile from './supplier-detail-mobile';
+import SupplierDetailMobile, { Icon, type IconName } from './supplier-detail-mobile';
+import { supplierLogoUrl } from '@/lib/supplier-logos';
 import {
   atarApi,
   type RequestCatalogCategoryRecord,
@@ -287,6 +288,95 @@ export default function SupplierDetail({
             </div>
   );
 
+  // Sin sesión, la columna del chat muestra un resumen para decidir y los
+  // accesos para cotizar, en vez de un aviso vacío de "iniciá sesión".
+  const leadTimeText = typeof supplier.leadTimeDays === 'number' ? `${supplier.leadTimeDays} días` : null;
+  const minimumOrderText =
+    typeof supplier.minimumOrder === 'number' ? new Intl.NumberFormat('es-AR').format(supplier.minimumOrder) : null;
+  const guestFacts = [
+    { icon: 'pin', label: 'Ubicación', value: location },
+    leadTimeText ? { icon: 'truck', label: 'Plazo de entrega', value: leadTimeText } : null,
+    minimumOrderText ? { icon: 'box', label: 'Pedido mínimo', value: minimumOrderText } : null,
+    supplier.certifications.length > 0 ? { icon: 'award', label: 'Calidad', value: supplier.certifications.join(' · ') } : null,
+  ].filter(Boolean) as { icon: IconName; label: string; value: string }[];
+  const guestLogo = supplierLogoUrl(supplier);
+
+  const guestAside = (
+    <div className="flex h-full min-h-0 flex-col overflow-y-auto bg-[linear-gradient(180deg,#f3f7ff_0%,#ffffff_42%)] px-7 py-8 [scrollbar-width:thin]">
+      <div className="flex items-center gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-[#e3e8f4] bg-white p-1.5 shadow-[0_6px_16px_rgba(15,23,42,0.08)]">
+          {guestLogo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img alt="" className="max-h-full max-w-full object-contain" src={guestLogo} />
+          ) : (
+            <span className="text-[15px] font-bold text-[#1f5bff]">{supplier.name.slice(0, 2).toUpperCase()}</span>
+          )}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-[15px] font-semibold text-[#0b1533]">{supplier.name}</p>
+          {supplier.isVerified ? (
+            <p className="flex items-center gap-1 text-[12px] font-medium text-[#1f5bff]">
+              <Icon className="h-3.5 w-3.5" name="check" />
+              Proveedor verificado por ATAR
+            </p>
+          ) : null}
+        </div>
+      </div>
+
+      <h2 className="mt-7 text-[24px] font-bold leading-tight tracking-[-0.03em] text-[#0b1533]">
+        Pedile una cotización a {supplier.name}
+      </h2>
+      <p className="mt-2 text-[14px] leading-6 text-slate-500">
+        Creá tu cuenta de comprador para chatear con el proveedor, consultar disponibilidad y recibir su cotización.
+      </p>
+
+      {guestFacts.length > 0 ? (
+        <dl className="mt-6 divide-y divide-[#e6eaf3] rounded-[18px] border border-[#e3e8f4] bg-white shadow-[0_2px_6px_rgba(15,23,42,0.04)]">
+          {guestFacts.map((fact) => (
+            <div key={fact.label} className="flex items-start gap-3 px-4 py-3.5">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef3ff] text-[#1f5bff]">
+                <Icon className="h-4 w-4" name={fact.icon} />
+              </span>
+              <div className="min-w-0">
+                <dt className="text-[12px] text-slate-500">{fact.label}</dt>
+                <dd className="text-[14px] font-semibold text-[#0b1533]">{fact.value}</dd>
+              </div>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+
+      <div className="mt-6 space-y-2.5">
+        <Link
+          className="flex h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[#1f5bff] text-[15px] font-semibold text-white shadow-[0_10px_24px_rgba(31,91,255,0.3)] transition hover:bg-[#194ee6]"
+          href="/acceso?perfil=cliente"
+        >
+          Crear cuenta para cotizar
+          <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+            <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+          </svg>
+        </Link>
+        <Link
+          className="flex h-12 w-full items-center justify-center rounded-[14px] border border-[#d9e1f1] bg-white text-[15px] font-semibold text-[#0b1533] transition hover:border-[#1f5bff] hover:text-[#1f5bff]"
+          href="/acceso"
+        >
+          Ya tengo cuenta · Iniciar sesión
+        </Link>
+      </div>
+
+      <ul className="mt-7 space-y-3 text-[13px] text-slate-600">
+        {['Chat directo con el proveedor', 'Cotizaciones comparables en un solo lugar', 'Seguimiento del pedido hasta la entrega'].map((item) => (
+          <li key={item} className="flex items-center gap-2.5">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#e7f6ee] text-[#0e9f6e]">
+              <Icon className="h-3 w-3" name="check" />
+            </span>
+            {item}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+
   return (
     <>
       <SupplierDetailMobile
@@ -351,6 +441,7 @@ export default function SupplierDetail({
             supplierCompanyName={supplier.name}
             title={`Chat con ${supplier.name}`}
             description="Consultá disponibilidad, condiciones o capacidad antes de pedir la cotización."
+            guestContent={variant === 'public' ? guestAside : undefined}
           />
         </div>
       </div>

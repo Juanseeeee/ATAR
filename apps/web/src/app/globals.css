@@ -244,6 +244,40 @@ a:focus-visible,
 }
 
 /* ---------------------------------------------------------------------------
+ * Acento de la plataforma (comprador, sitio público, pantallas compartidas).
+ *
+ * La UI escribe `indigo` como color de acento y `violet` como segundo color
+ * de categoría (estados, indicadores). Por defecto Tailwind los pinta en
+ * violeta; acá se corren al azul de marca y a un azul marino, que se distingue
+ * del principal sin salir de la paleta. `.theme-supplier` y `.theme-company`
+ * los vuelven a pisar con el verde y el violeta de cada panel de ventas.
+ * ------------------------------------------------------------------------- */
+@theme {
+  --color-indigo-50: #eef3ff;
+  --color-indigo-100: #dfe8ff;
+  --color-indigo-200: #c4d4ff;
+  --color-indigo-300: #9db7ff;
+  --color-indigo-400: #6c92ff;
+  --color-indigo-500: #3a6bff;
+  --color-indigo-600: #1f5bff;
+  --color-indigo-700: #1747d6;
+  --color-indigo-800: #163aa8;
+  --color-indigo-900: #152f80;
+  --color-indigo-950: #0e1d52;
+
+  --color-violet-50: #eef1fb;
+  --color-violet-100: #dde3f7;
+  --color-violet-200: #bcc8ef;
+  --color-violet-300: #93a5e3;
+  --color-violet-400: #6a82d6;
+  --color-violet-500: #4864c8;
+  --color-violet-600: #3450b0;
+  --color-violet-700: #283f8f;
+  --color-violet-800: #213372;
+  --color-violet-900: #1c2b5c;
+}
+
+/* ---------------------------------------------------------------------------
  * Tema del panel de ventas. Por defecto es el del VENDEDOR: identidad verde.
  * La empresa proveedora usa el mismo panel en violeta (ver `.theme-company`,
  * más abajo).
@@ -459,4 +493,46 @@ a:focus-visible,
   .loader-bar {
     animation: none;
   }
+}
+
+/* Pantalla de elección de país (components/region/region-provider.tsx). */
+@keyframes region-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes region-pop {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes region-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------------------------------------------------------------------------
+ * Sitio público en el azul de marca.
+ *
+ * Las páginas nuevas (inicio, productos, proveedores, cómo funciona) usan el
+ * azul #1f5bff. Las pantallas que comparten componentes con la plataforma
+ * (header, footer, acceso, ficha del proveedor) escriben `indigo`/`violet`,
+ * que por defecto es violeta. Dentro de `.theme-public` esas escalas se corren
+ * al azul, igual que `.theme-supplier` las corre al verde en el panel del
+ * proveedor. El panel del comprador no usa esta clase y no cambia.
+ * ------------------------------------------------------------------------- */
+.theme-public {
+  --color-indigo-50: #eef3ff;
+  --color-indigo-100: #dfe8ff;
+  --color-indigo-200: #c4d4ff;
+  --color-indigo-300: #9db7ff;
+  --color-indigo-400: #6c92ff;
+  --color-indigo-500: #3a6bff;
+  --color-indigo-600: #1f5bff;
+  --color-indigo-700: #1747d6;
+  --color-indigo-800: #163aa8;
+  --color-indigo-900: #152f80;
+  --color-indigo-950: #0e1d52;
+  --color-violet-500: #3a6bff;
+  --color-violet-600: #1f5bff;
+  --color-violet-700: #1747d6;
+  --focus-ring: #1f5bff;
 }

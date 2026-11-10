@@ -139,7 +139,7 @@ function QuoteComparison({
                     ) : null}
                     <div className="mt-1 flex flex-wrap gap-1">
                       {bestPriceId === quote.id ? (
-                        <span className="rounded-full bg-[#eef2ff] px-2 py-0.5 text-[9px] font-semibold text-[#1847ff]">Mejor precio</span>
+                        <span className="rounded-full bg-[#eef3ff] px-2 py-0.5 text-[9px] font-semibold text-[#1847ff]">Mejor precio</span>
                       ) : null}
                       {fastestId === quote.id ? (
                         <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[9px] font-semibold text-teal-700">Más rápida</span>
@@ -1166,7 +1166,7 @@ export default function BuyerRequestDetailPage() {
             <div className="space-y-6 pt-6">
               <section>
                 <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef2ff] text-[#1847ff]">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef3ff] text-[#1847ff]">
                     <DetailIcon type="file" />
                   </span>
                   <h2 className="min-w-0 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
@@ -1223,7 +1223,7 @@ export default function BuyerRequestDetailPage() {
               {/* ==================== COTIZACIONES RECIBIDAS ==================== */}
               <section className="border-t border-slate-300 pt-6">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef2ff] text-[#1847ff]">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef3ff] text-[#1847ff]">
                     <DetailIcon type="scale" />
                   </span>
                   <h2 className="min-w-0 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
@@ -1256,7 +1256,7 @@ export default function BuyerRequestDetailPage() {
 
                 {/* Ayuda de decisión: los ejes en lenguaje simple */}
                 {decisionHints.length > 0 ? (
-                  <div className="mt-4 rounded-[12px] border border-[#dbe6ff] bg-[#eef2ff]/60 px-4 py-3">
+                  <div className="mt-4 rounded-[12px] border border-[#dbe6ff] bg-[#eef3ff]/60 px-4 py-3">
                     <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#1847ff]">
                       <DetailIcon type="scale" />
                       Para ayudarte a decidir
@@ -1312,7 +1312,7 @@ export default function BuyerRequestDetailPage() {
                             <div className="flex min-w-0 gap-3">
                               <span
                                 className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] text-sm font-bold ${
-                                  isAwarded ? 'bg-emerald-100 text-emerald-700' : 'bg-[#eef2ff] text-[#1847ff]'
+                                  isAwarded ? 'bg-emerald-100 text-emerald-700' : 'bg-[#eef3ff] text-[#1847ff]'
                                 }`}
                               >
                                 {supplierName.slice(0, 2).toUpperCase()}
@@ -1344,7 +1344,7 @@ export default function BuyerRequestDetailPage() {
                                     </span>
                                   )}
                                   {!isRejected && bestPrice?.id === quote.id ? (
-                                    <span className="rounded-full bg-[#eef2ff] px-2.5 py-1 text-[10px] font-semibold text-[#1847ff]">
+                                    <span className="rounded-full bg-[#eef3ff] px-2.5 py-1 text-[10px] font-semibold text-[#1847ff]">
                                       Mejor precio
                                     </span>
                                   ) : null}
@@ -1478,7 +1478,7 @@ export default function BuyerRequestDetailPage() {
               {awardedQuote ? (
                 <section className="border-t border-slate-300 pt-6">
                   <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef2ff] text-[#1847ff]">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef3ff] text-[#1847ff]">
                       <DetailIcon type="file" />
                     </span>
                     <h2 className="min-w-0 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">Orden y cumplimiento</h2>
@@ -1624,7 +1624,7 @@ export default function BuyerRequestDetailPage() {
 
               <section className="border-t border-slate-300 pt-6">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef2ff] text-[#1847ff]">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef3ff] text-[#1847ff]">
                     <DetailIcon type="pin" />
                   </span>
                   <h2 className="min-w-0 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">Información de entrega y contacto</h2>
@@ -1650,7 +1650,7 @@ export default function BuyerRequestDetailPage() {
 
               <section className="border-t border-slate-300 pt-6">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef2ff] text-[#1847ff]">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef3ff] text-[#1847ff]">
                     <DetailIcon type="file" />
                   </span>
                   <h2 className="min-w-0 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">Especificaciones</h2>
@@ -1714,7 +1714,7 @@ export default function BuyerRequestDetailPage() {
                   supplierCards.map((provider) => (
                     <article key={provider.id} className="flex items-center justify-between gap-3 rounded-[10px] border border-slate-300 bg-white px-3 py-2.5">
                       <div className="flex min-w-0 items-center gap-2.5">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#eef2ff] text-sm font-bold text-[#1847ff]">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#eef3ff] text-sm font-bold text-[#1847ff]">
                           {provider.name.slice(0, 1).toUpperCase()}
                         </span>
                         <div className="min-w-0">

@@ -1,6 +1,8 @@
 'use client';
 
 import Image from 'next/image';
+import { useRegion } from '@/components/region/region-provider';
+import { categorySearchTerms } from '@/lib/regional-terms';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useMemo, useState } from 'react';
@@ -57,13 +59,31 @@ function normalize(value: string) {
 }
 
 /**
- * Recortes PNG (producto solo, sin fondo) disponibles hoy. El resto de los
- * rubros todavía no tiene recorte y usa su foto dentro del mismo círculo.
+ * Íconos de rubro (los mismos del inicio público). Varios rubros del catálogo
+ * comparten ícono: todos los hilos/cuerdas usan el de hilos, las telas el de telas.
  */
+const ICONS: Record<string, string> = {
+  'big bags': '/categorias/ico-bigbags.png',
+  'bolsas pp': '/categorias/ico-bolsas.png',
+  sacos: '/categorias/ico-bolsas.png',
+  polipropileno: '/categorias/ico-polimeros.png',
+  polietileno: '/categorias/ico-polimeros.png',
+  'rollos y telas': '/categorias/ico-telas.png',
+  'telas tubulares': '/categorias/ico-telas.png',
+  'telas planas': '/categorias/ico-telas.png',
+  tintas: '/categorias/ico-tintas.png',
+  'cuerdas/cordones': '/categorias/ico-hilos.png',
+  'cintas/cintillas': '/categorias/ico-hilos.png',
+  'hilo multifilamento de pp': '/categorias/ico-hilos.png',
+  'hilo retorcido y mallas': '/categorias/ico-hilos.png',
+  maquinarias: '/categorias/ico-maquinaria.png',
+};
+
+/** Rubros de la fila del home, en orden. */
+const HOME_ROW = ['big bags', 'bolsas pp', 'rollos y telas', 'maquinarias', 'sacos', 'tintas', 'cuerdas/cordones'];
+
+/** Recortes PNG (producto solo, sin fondo) para los rubros que todavía no tienen ícono. */
 const CUTOUTS: Record<string, string> = {
-  'big bags': '/bigbag.png',
-  'bolsas pp': '/bolsapp.png',
-  'rollos y telas': '/rollo.png',
   'a medida': '/amedida.png',
 };
 
@@ -72,6 +92,8 @@ type HomeCategory = {
   label: string;
   subtitle: string;
   image: string;
+  /** true = ícono de rubro sobre fondo blanco. */
+  icon: boolean;
   /** true = PNG recortado: se muestra entero y agrandado, sin recortar. */
   cutout: boolean;
   /** Texto contra el que se compara la búsqueda. */
@@ -81,16 +103,20 @@ type HomeCategory = {
 function mapCategory(record: RequestCatalogCategoryRecord): HomeCategory {
   // Sin recorte, las fotos locales con nombre de producto tienen prioridad sobre las del API.
   const local = FALLBACK_REQUEST_CATEGORIES.find((item) => normalize(item.label) === normalize(record.label));
+  const icon = ICONS[normalize(record.label)];
   const cutout = CUTOUTS[normalize(record.label)];
   return {
     id: record.id,
     label: record.label,
     subtitle: record.subtitle ?? local?.subtitle ?? '',
-    image: cutout ?? local?.imageSrc ?? record.imageSrc ?? '/logoatar.png',
+    image: icon ?? cutout ?? local?.imageSrc ?? record.imageSrc ?? '/logoatar.png',
+    icon: Boolean(icon),
     cutout: Boolean(cutout),
     haystack: normalize(
       [
         record.label,
+        // Nombres de otros países (maxisaco, costal, bolsón…) para que también encuentren el rubro.
+        ...categorySearchTerms(record.label),
         record.subtitle ?? '',
         ...record.searchKeywords,
         ...record.fields.flatMap((field) => [field.label, ...field.options]),
@@ -172,15 +198,27 @@ const secondaryButton =
   'inline-flex items-center justify-center gap-2 rounded-[10px] border border-slate-400 bg-white font-semibold text-slate-950 transition hover:border-slate-950';
 
 function CategoryCell({ category, className = 'flex' }: { category: HomeCategory; className?: string }) {
+  const { categoryName } = useRegion();
+  const label = categoryName(category.label);
   return (
     <Link
       className={`group relative ${className} items-center gap-3 border-b border-r border-slate-300 bg-white p-2.5 transition hover:z-10 hover:shadow-[0_8px_24px_rgba(15,23,42,0.16)] sm:flex-col sm:gap-2.5 sm:px-3 sm:py-5 sm:text-center`}
       href={categoryHref(category.label)}
     >
-      <span className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-slate-300 bg-[#e3e9f6] transition group-hover:border-[#1847ff] sm:h-[92px] sm:w-[92px]">
+      <span
+        className={`relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-slate-300 transition group-hover:border-[#1847ff] sm:h-[92px] sm:w-[92px] ${
+          category.icon ? 'bg-white' : 'bg-[#e3e9f6]'
+        }`}
+      >
         <Image
           alt=""
-          className={category.cutout ? 'scale-[1.75] object-contain' : 'object-cover'}
+          className={
+            category.icon
+              ? 'object-contain p-1.5 transition group-hover:scale-105 sm:p-3.5'
+              : category.cutout
+                ? 'scale-[1.75] object-contain'
+                : 'object-cover'
+          }
           fill
           sizes="92px"
           src={category.image}
@@ -189,7 +227,7 @@ function CategoryCell({ category, className = 'flex' }: { category: HomeCategory
       <span className="min-w-0">
         <span className="block text-[13px] font-bold leading-[1.25] text-slate-950 group-hover:text-[#1847ff] sm:text-[14px]">
           {/* Espacio de ancho cero: deja cortar "Cuerdas/Cordones" después de la barra. */}
-          {category.label.replace(/\//g, '/\u200b')}
+          {label.replace(/\//g, '/\u200b')}
         </span>
         {category.subtitle ? (
           <span className="mt-0.5 hidden text-[12px] text-slate-600 sm:line-clamp-2">{category.subtitle}</span>
@@ -217,7 +255,44 @@ function ShortcutGlyph({ name }: { name: ShortcutIcon }) {
   );
 }
 
-type Shortcut = { title: string; text: string; action: string; href: string; icon: ShortcutIcon; primary?: boolean };
+type Shortcut = {
+  title: string;
+  /** Nombre corto para la grilla de mobile. */
+  short: string;
+  text: string;
+  action: string;
+  href: string;
+  icon: ShortcutIcon;
+  primary?: boolean;
+  /** Pendientes que se marcan sobre el ícono en mobile. */
+  badge?: number;
+};
+
+/** Mobile: los seis accesos a la vista, en una grilla de 3×2 con ícono y nombre. */
+function ShortcutTile({ shortcut }: { shortcut: Shortcut }) {
+  return (
+    <Link
+      className="group flex flex-col items-center gap-2 rounded-[10px] px-1 py-3 text-center transition active:bg-slate-50"
+      href={shortcut.href}
+    >
+      <span
+        className={`relative flex h-11 w-11 items-center justify-center rounded-full ${
+          shortcut.primary ? 'bg-[#1847ff] text-white shadow-[0_6px_14px_rgba(24,71,255,0.35)]' : 'bg-[#dbe6ff] text-[#1238d6]'
+        }`}
+      >
+        <ShortcutGlyph name={shortcut.icon} />
+        {shortcut.badge ? (
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ff4d4f] px-1 text-[10px] font-bold text-white ring-2 ring-white">
+            {shortcut.badge > 9 ? '9+' : shortcut.badge}
+          </span>
+        ) : null}
+      </span>
+      <span className={`text-[12px] font-semibold leading-tight ${shortcut.primary ? 'text-[#1847ff]' : 'text-slate-800'}`}>
+        {shortcut.short}
+      </span>
+    </Link>
+  );
+}
 
 /** Accesos bajo el banner, como la fila de tarjetas de un marketplace. */
 function ShortcutCard({ shortcut }: { shortcut: Shortcut }) {
@@ -237,7 +312,7 @@ function ShortcutCard({ shortcut }: { shortcut: Shortcut }) {
         className={`mt-3 flex h-9 items-center justify-center rounded-[8px] text-[13px] font-semibold transition ${
           shortcut.primary
             ? 'bg-[#1847ff] text-white group-hover:bg-[#0f3ff5]'
-            : 'border border-[#1847ff] bg-[#eef2ff] text-[#1238d6] group-hover:bg-[#dbe6ff]'
+            : 'border border-[#1847ff] bg-[#eef3ff] text-[#1238d6] group-hover:bg-[#dbe6ff]'
         }`}
       >
         {shortcut.action}
@@ -383,11 +458,13 @@ function BuyerHome() {
   }, [accessToken]);
 
   const categories = useMemo(() => catalog.map(mapCategory), [catalog]);
-  // Sin búsqueda, el home muestra una sola fila: primero los rubros con recorte
-  // PNG y el resto queda detrás de "Ver todo el catálogo".
+  // Sin búsqueda, el home muestra una sola fila con estos rubros, en este orden
+  // (Maquinarias en el medio); el resto queda detrás de "Ver todo el catálogo".
   const visibleCategories = needle
     ? categories.filter((item) => item.haystack.includes(needle))
-    : [...categories].sort((left, right) => Number(right.cutout) - Number(left.cutout)).slice(0, 7);
+    : HOME_ROW.map((label) => categories.find((item) => normalize(item.label) === label)).filter(
+        (item): item is HomeCategory => Boolean(item),
+      );
   const matchedSuppliers = needle ? suppliers.filter((item) => supplierHaystack(item).includes(needle)) : suppliers;
   const visibleSuppliers = needle ? matchedSuppliers : matchedSuppliers.slice(0, 4);
   const noResults = Boolean(needle) && catalogLoaded && visibleCategories.length + visibleSuppliers.length === 0;
@@ -417,6 +494,7 @@ function BuyerHome() {
   const shortcuts: Shortcut[] = [
     {
       title: 'Solicitar cotización',
+      short: 'Cotizar',
       text: 'Contá qué necesitás y recibí propuestas de varios proveedores.',
       action: 'Empezar ahora',
       href: NUEVA_HREF,
@@ -425,6 +503,7 @@ function BuyerHome() {
     },
     {
       title: 'Mis solicitudes',
+      short: 'Solicitudes',
       text: counts.open > 0 ? `Tenés ${plural(counts.open, 'solicitud abierta', 'solicitudes abiertas')}.` : 'Todavía no tenés solicitudes abiertas.',
       action: 'Ver solicitudes',
       href: SOLICITUDES_HREF,
@@ -432,6 +511,8 @@ function BuyerHome() {
     },
     {
       title: 'Cotizaciones',
+      short: 'Cotizaciones',
+      badge: counts.withQuotes,
       text: counts.withQuotes > 0 ? `${plural(counts.withQuotes, 'solicitud tiene', 'solicitudes tienen')} respuestas para comparar.` : 'Acá vas a ver las respuestas de los proveedores.',
       action: 'Comparar respuestas',
       href: '/dashboard/comprador/cotizaciones',
@@ -439,6 +520,7 @@ function BuyerHome() {
     },
     {
       title: 'Mis pedidos',
+      short: 'Pedidos',
       text: counts.orders > 0 ? `${plural(counts.orders, 'compra adjudicada', 'compras adjudicadas')} para seguir.` : 'Seguí el estado de tus compras adjudicadas.',
       action: 'Ver pedidos',
       href: '/dashboard/comprador/pedidos',
@@ -446,6 +528,7 @@ function BuyerHome() {
     },
     {
       title: 'Proveedores',
+      short: 'Proveedores',
       text: suppliers.length > 0 ? `${plural(suppliers.length, 'empresa registrada', 'empresas registradas')} en ATAR.` : 'Fabricantes y distribuidores del sector.',
       action: 'Ver proveedores',
       href: PROVEEDORES_HREF,
@@ -453,6 +536,7 @@ function BuyerHome() {
     },
     {
       title: 'Favoritos',
+      short: 'Favoritos',
       text: 'Los proveedores que guardaste para tener a mano.',
       action: 'Ver favoritos',
       href: '/dashboard/comprador/favoritos',
@@ -513,7 +597,7 @@ function BuyerHome() {
               </p>
               <div className="mt-5 grid grid-cols-2 gap-2.5 sm:flex sm:gap-3">
                 <Link
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-[10px] bg-white px-2 text-[14px] font-bold text-[#1238d6] shadow-[0_3px_0_rgba(0,0,0,0.25)] transition hover:bg-[#eef2ff] sm:px-6 sm:text-[15px]"
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-[10px] bg-white px-2 text-[14px] font-bold text-[#1238d6] shadow-[0_3px_0_rgba(0,0,0,0.25)] transition hover:bg-[#eef3ff] sm:px-6 sm:text-[15px]"
                   href={NUEVA_HREF}
                 >
                   Solicitar cotización
@@ -531,7 +615,12 @@ function BuyerHome() {
 
           {/* ==================== ACCESOS ==================== */}
           <div className="relative -mt-10 lg:-mt-14" data-tour="home-shortcuts">
-            <div className="flex gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] xl:grid xl:grid-cols-6 xl:overflow-visible xl:px-6 [&::-webkit-scrollbar]:hidden">
+            <div className="mx-4 grid grid-cols-3 gap-1 rounded-[14px] border border-slate-300 bg-white p-1.5 shadow-[0_6px_18px_rgba(15,23,42,0.10)] sm:hidden">
+              {shortcuts.map((shortcut) => (
+                <ShortcutTile key={shortcut.title} shortcut={shortcut} />
+              ))}
+            </div>
+            <div className="hidden gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:flex xl:grid xl:grid-cols-6 xl:overflow-visible xl:px-6 [&::-webkit-scrollbar]:hidden">
               {shortcuts.map((shortcut) => (
                 <ShortcutCard key={shortcut.title} shortcut={shortcut} />
               ))}
@@ -579,7 +668,7 @@ function BuyerHome() {
                     ))}
                 {catalogLoaded && !needle ? (
                   <Link
-                    className="group flex items-center gap-3 border-b border-r border-slate-300 bg-[#eef2ff] p-2.5 transition hover:bg-[#dbe6ff] sm:flex-col sm:justify-center sm:gap-2.5 sm:px-3 sm:py-5 sm:text-center"
+                    className="group flex items-center gap-3 border-b border-r border-slate-300 bg-[#eef3ff] p-2.5 transition hover:bg-[#dbe6ff] sm:flex-col sm:justify-center sm:gap-2.5 sm:px-3 sm:py-5 sm:text-center"
                     href={NUEVA_HREF}
                   >
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#1847ff] text-white sm:h-[92px] sm:w-[92px]">
@@ -638,7 +727,7 @@ function BuyerHome() {
                   return (
                     <li key={request.id} className="border-b border-r border-slate-300 bg-white">
                       <Link
-                        className="group flex h-full flex-col px-4 py-3.5 transition hover:bg-[#eef2ff] lg:px-5"
+                        className="group flex h-full flex-col px-4 py-3.5 transition hover:bg-[#eef3ff] lg:px-5"
                         href={`${SOLICITUDES_HREF}/${request.id}`}
                       >
                         <span className={`self-start rounded-full px-2 py-0.5 text-[11px] font-semibold ${activity.tone}`}>

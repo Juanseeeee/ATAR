@@ -35,6 +35,8 @@ type ConversationPanelProps = {
   title?: string;
   description?: string;
   loginHref?: string;
+  /** Lo que se muestra sin sesión en lugar del aviso genérico de "iniciar sesión". */
+  guestContent?: React.ReactNode;
   /** Si viene, muestra un botón "volver" en el header (solo mobile). */
   onBack?: () => void;
 };
@@ -157,6 +159,7 @@ export default function ConversationPanel({
   title = 'Chat contextual',
   description = 'Intercambia mensajes y archivos sin salir del flujo comercial.',
   loginHref = '/acceso',
+  guestContent,
   onBack,
 }: ConversationPanelProps) {
   const [activeSession, setActiveSession] = useState<WebSession | null>(session ?? null);
@@ -573,6 +576,10 @@ export default function ConversationPanel({
       }
     };
   }, [conversation?.id, emitTypingState, liveConnected]);
+
+  if (!activeSession?.accessToken && guestContent) {
+    return <>{guestContent}</>;
+  }
 
   if (!activeSession?.accessToken) {
     return (

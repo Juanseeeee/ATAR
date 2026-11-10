@@ -7,7 +7,7 @@ export function Spinner({ className }: { className?: string }) {
     <span
       role="status"
       aria-label="Cargando"
-      className={`inline-block animate-spin rounded-full border-2 border-slate-200 border-t-[var(--brand-accent,#4f46ff)] align-[-2px] motion-reduce:animate-none ${
+      className={`inline-block animate-spin rounded-full border-2 border-slate-200 border-t-[var(--brand-accent,#1f5bff)] align-[-2px] motion-reduce:animate-none ${
         className ?? 'h-5 w-5'
       }`}
     />
