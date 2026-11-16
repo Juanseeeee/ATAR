@@ -114,8 +114,8 @@ export const TO_DEFINE = 'A definir';
 
 /**
  * Campos que se completan en "Especificaciones". La cantidad tiene su propio
- * control; adjuntos no (no hay subida de archivos) y "Observaciones" es el
- * campo de comentarios que tiene todo producto.
+ * control; los adjuntos solo si el rubro los pide (el archivo editable de los
+ * clisés) y "Observaciones" es el campo de comentarios que tiene todo producto.
  */
 export function specFieldsFor(categories: RequestCatalogCategoryRecord[], category: string): RequestCatalogFieldRecord[] {
   const match = categories.find((item) => item.label === category);
@@ -123,10 +123,21 @@ export function specFieldsFor(categories: RequestCatalogCategoryRecord[], catego
   return (match?.fields ?? []).filter(
     (field) =>
       field.type !== 'quantity' &&
-      field.type !== 'uploader' &&
+      (field.type !== 'uploader' || field.required) &&
       !/^observaciones$/i.test(field.label) &&
       !Object.keys(fixed).some((label) => normalize(label) === normalize(field.label)),
   );
+}
+
+/** Un campo condicional se pregunta solo si el campo del que depende tiene uno de sus valores. */
+export function isFieldVisible(field: RequestCatalogFieldRecord, specs: Record<string, string>) {
+  if (!field.showWhen) return true;
+  return field.showWhen.values.includes((specs[field.showWhen.label] ?? '').trim());
+}
+
+/** Los campos que corresponden a este producto según lo que ya respondió. */
+export function visibleSpecFields(categories: RequestCatalogCategoryRecord[], line: ProductLine) {
+  return specFieldsFor(categories, line.category).filter((field) => isFieldVisible(field, line.specs));
 }
 
 /**

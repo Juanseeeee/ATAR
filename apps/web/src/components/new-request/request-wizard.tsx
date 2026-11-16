@@ -19,7 +19,7 @@ import {
   missingCount,
   newLine,
   saveDraft,
-  specFieldsFor,
+  visibleSpecFields,
   specificationText,
   type DeliveryWhen,
   type NewRequestDraft,
@@ -259,7 +259,7 @@ export default function RequestWizard() {
   const products = draft.products;
   const fieldsByLine = useMemo(() => {
     const map: Record<string, RequestCatalogFieldRecord[]> = {};
-    for (const line of products) map[line.id] = specFieldsFor(categories, line.category);
+    for (const line of products) map[line.id] = visibleSpecFields(categories, line);
     return map;
   }, [categories, products]);
   const missingByLine = useMemo(() => {

@@ -78,14 +78,29 @@ function questionTitle(question: Question, line: ProductLine) {
     'descripcion del producto': 'Contanos cómo es el producto',
     condicion: '¿Nuevo o usado?',
     condición: '¿Nuevo o usado?',
+    medida: '¿Qué medida?',
+    'medida útil (ancho x alto)': '¿Qué medida útil? (ancho x alto)',
+    'medida útil (ancho x largo x alto)': '¿Qué medida útil? (ancho x largo x alto)',
+    formato: '¿Plana o tubular?',
+    'tipo de laminado': '¿Qué laminado?',
+    'tipo de rejilla': '¿Qué tipo de rejilla?',
+    'parte superior': '¿Cómo es la parte superior?',
+    fondo: '¿Cómo es el fondo?',
+    'caras impresas': '¿Qué caras van impresas?',
+    denier: '¿Qué denier?',
+    tenacidad: '¿Qué tenacidad?',
+    producto: '¿Qué producto?',
+    tipo: '¿Qué necesitás?',
+    'archivo editable': 'Cargá el archivo editable',
   };
   if (known[lower]) return known[lower];
   if (lower.startsWith('tipo de ')) return `¿Qué ${lower}?`;
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-function Icon({ name, className = 'h-4 w-4' }: { name: 'check' | 'edit' | 'chev-left' | 'chev-right' | 'arrow' | 'help'; className?: string }) {
+function Icon({ name, className = 'h-4 w-4' }: { name: 'check' | 'edit' | 'chev-left' | 'chev-right' | 'arrow' | 'help' | 'upload'; className?: string }) {
   const paths: Record<string, ReactNode> = {
+    upload: <path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />,
     check: <path d="m5 12 4.5 4.5L19 7" />,
     edit: <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />,
     'chev-left': <path d="m15 6-6 6 6 6" />,
@@ -270,7 +285,33 @@ export default function SpecsStep({
     const standard = field.options.filter((option) => option.toLowerCase() !== TO_DEFINE.toLowerCase());
     canContinue = !field.required || value.length > 0;
 
-    if (field.type === 'choices' || field.type === 'segmented') {
+    if (field.type === 'uploader') {
+      const hasFile = value.length > 0 && value !== TO_DEFINE;
+      body = (
+        <div className="space-y-3">
+          <label
+            className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-5 py-8 text-center transition ${
+              hasFile ? 'border-[#1f5bff] bg-[#f3f6ff]' : 'border-slate-300 bg-white hover:border-[#9db4ff] hover:bg-[#fafbff]'
+            }`}
+          >
+            <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${hasFile ? 'bg-[#1f5bff] text-white' : 'bg-[#eef3ff] text-[#1238d6]'}`}>
+              <Icon className="h-5 w-5" name={hasFile ? 'check' : 'upload'} />
+            </span>
+            <span className="text-[15px] font-semibold text-slate-900">{hasFile ? value : 'Elegí el archivo'}</span>
+            <span className="text-[13px] text-slate-500">{hasFile ? 'Tocá para cambiarlo' : field.helper ?? 'Subí el archivo'}</span>
+            <input
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) answerAndAdvance(() => setThis(field.label, file.name));
+                event.target.value = '';
+              }}
+              type="file"
+            />
+          </label>
+        </div>
+      );
+    } else if (field.type === 'choices' || field.type === 'segmented') {
       const isCustom = value.length > 0 && value !== TO_DEFINE && !standard.includes(value);
       const showCustom = customOpen[qKey] || isCustom;
       const typed = customDraft[qKey] ?? (isCustom ? value : '');
@@ -453,7 +494,7 @@ export default function SpecsStep({
                   type="button"
                 >
                   <Icon name="help" />
-                  No sé, a definir
+                  {question.kind === 'field' && question.field.type === 'uploader' ? 'Lo envío más adelante' : 'No sé, a definir'}
                 </button>
               ) : null}
               <div className="flex-1" />
