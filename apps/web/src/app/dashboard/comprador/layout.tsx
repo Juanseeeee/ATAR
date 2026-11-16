@@ -7,6 +7,7 @@ import AssistantFab from '@/components/dashboard/assistant-fab';
 import BuyerBottomNav from '@/components/dashboard/buyer-bottom-nav';
 import BuyerMarketplaceHeader from '@/components/dashboard/buyer-marketplace-header';
 import BuyerNewRequestCta from '@/components/dashboard/buyer-new-request-cta';
+import BuyerSidebar from '@/components/dashboard/buyer-sidebar';
 import TourProvider from '@/components/tour/tour-provider';
 import { useBuyerNotificationCount } from '@/lib/dashboard-hooks';
 
@@ -35,29 +36,34 @@ export default function BuyerDashboardLayout({ children }: { children: React.Rea
   return (
     <AuthGuard allowedRole="BUYER">
       <TourProvider>
+      {/* Escritorio: menú lateral fijo + columna con la barra superior y el
+          contenido. En mobile el menú lateral no se muestra (barra inferior). */}
       <div
-        className={`text-slate-950 ${
+        className={`flex text-slate-950 ${
           isBuyerWizard ? 'bg-[linear-gradient(180deg,#f7f9ff_0%,#eef2fe_100%)]' : 'bg-[#e9edf5]'
-        } ${isBuyerMessages ? 'flex h-[100dvh] flex-col overflow-hidden' : 'min-h-screen'}`}
+        } ${isBuyerMessages ? 'h-[100dvh] overflow-hidden' : 'min-h-screen'}`}
       >
-        <BuyerMarketplaceHeader session={session} wide marketplace notificationCount={notificationCount} />
-        {isFullBleed ? (
-          <div className={showBottomNav ? 'pb-[76px] lg:pb-0' : undefined}>{children}</div>
-        ) : isBuyerMessages ? (
-          <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
-        ) : (
-          <main
-            // Todas las secciones usan el ancho completo de la pantalla, con el
-            // mismo margen lateral que el header.
-            className={
-              isBuyerWizard || isBuyerRequestDetail || isBuyerSupplierDetail || isBuyerQuoteDetail
-                ? 'w-full px-3 py-3 lg:px-4 xl:px-6'
-                : 'w-full px-4 pt-4 pb-24 lg:pb-4 xl:px-6'
-            }
-          >
-            {children}
-          </main>
-        )}
+        <BuyerSidebar notificationCount={notificationCount} session={session} />
+        <div className={`flex min-w-0 flex-1 flex-col ${isBuyerMessages ? 'h-[100dvh] overflow-hidden' : ''}`}>
+          <BuyerMarketplaceHeader notificationCount={notificationCount} />
+          {isFullBleed ? (
+            <div className={showBottomNav ? 'pb-[76px] lg:pb-0' : undefined}>{children}</div>
+          ) : isBuyerMessages ? (
+            <main className="min-h-0 flex-1 overflow-hidden">{children}</main>
+          ) : (
+            <main
+              // Todas las secciones usan el ancho completo de la columna, con el
+              // mismo margen lateral que la barra superior.
+              className={
+                isBuyerWizard || isBuyerRequestDetail || isBuyerSupplierDetail || isBuyerQuoteDetail
+                  ? 'w-full px-3 py-3 lg:px-4 xl:px-6'
+                  : 'w-full px-4 pt-4 pb-24 lg:pb-4 xl:px-6'
+              }
+            >
+              {children}
+            </main>
+          )}
+        </div>
         {showBottomNav ? <BuyerBottomNav notificationCount={notificationCount} /> : null}
         {/* En Configuración taparía los interruptores de preferencias. */}
         {!isBuyerWizard && !isBuyerMessages && !pathname?.startsWith('/dashboard/comprador/configuracion') ? <BuyerNewRequestCta /> : null}

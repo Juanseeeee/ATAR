@@ -9,7 +9,7 @@ import { type HomeCardKey, homeCardText } from '@/lib/regional-terms';
 // Título y bajada salen de lib/regional-terms según el país elegido.
 const CATEGORIES: { key: HomeCardKey; img: string; href: string }[] = [
   { key: 'telas', img: '/categorias/cat5-telas.png', href: '/productos?q=Telas' },
-  { key: 'sacos', img: '/categorias/cat5-sacos.png', href: '/productos?q=Bolsas' },
+  { key: 'sacos', img: '/categorias/cat5-sacos.png', href: '/productos?q=Costales' },
   { key: 'maquinaria', img: '/categorias/cat5-maquinaria.png', href: '/productos?q=Maquinaria' },
   { key: 'bigbags', img: '/categorias/cat5-bigbags.png', href: '/productos?q=Big%20Bags' },
   { key: 'insumos', img: '/categorias/cat5-insumos.png', href: '/productos' },

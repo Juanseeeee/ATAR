@@ -72,6 +72,8 @@ const ICONS: Record<string, string> = {
   'telas tubulares': '/categorias/ico-telas.png',
   'telas planas': '/categorias/ico-telas.png',
   tintas: '/categorias/ico-tintas.png',
+  fotopolímeros: '/categorias/ico-polimeros.png',
+  fotopolimeros: '/categorias/ico-polimeros.png',
   'cuerdas/cordones': '/categorias/ico-hilos.png',
   'cintas/cintillas': '/categorias/ico-hilos.png',
   'hilo multifilamento de pp': '/categorias/ico-hilos.png',
@@ -322,7 +324,8 @@ function ShortcutCard({ shortcut }: { shortcut: Shortcut }) {
 }
 
 function SupplierCell({ supplier }: { supplier: SupplierDirectoryRecord }) {
-  const specialties = Array.from(new Set([...supplier.mainProducts, ...supplier.categories])).slice(0, 4);
+  const { categoryName } = useRegion();
+  const specialties = Array.from(new Set([...supplier.mainProducts, ...supplier.categories].map(categoryName))).slice(0, 4);
   const terms = [
     typeof supplier.minimumOrder === 'number' ? `Pedido mín. ${supplier.minimumOrder.toLocaleString('es-AR')}` : null,
     typeof supplier.leadTimeDays === 'number' ? `Entrega en ${supplier.leadTimeDays} días` : null,

@@ -232,7 +232,7 @@ const COUNTRIES: { name: string; flag: FlagName | null }[] = [
 const HERO_ROLES: { label: string; hint: string; href: string; icon: IconName; color: string }[] = [
   { label: 'Cliente', hint: 'Quiero comprar', href: '/acceso?perfil=cliente', icon: 'cart', color: 'text-[#1f5bff]' },
   { label: 'Vendedor', hint: 'Trabajo para una empresa', href: '/acceso?perfil=vendedor', icon: 'users', color: 'text-[#16a34a]' },
-  { label: 'Proveedor', hint: 'Quiero vender mis productos', href: '/acceso?perfil=proveedor', icon: 'factory', color: 'text-[#3450b0]' },
+  { label: 'Proveedor', hint: 'Quiero vender mis productos', href: '/acceso?perfil=proveedor', icon: 'factory', color: 'text-[#6440e8]' },
 ];
 
 const primaryCta =
@@ -280,10 +280,9 @@ export default function Home() {
                 >
                   {/* Brillo diagonal del vidrio. */}
                   <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.65)_0%,rgba(255,255,255,0)_45%)]" />
-                  <span className="relative flex h-11 w-11 items-center justify-center rounded-[12px] border border-white/80 bg-white/70 shadow-[0_4px_12px_rgba(31,64,160,0.08)]">
-                    <Icon name={role.icon} className="h-6 w-6" />
-                  </span>
-                  <span className="relative mt-3 block text-[1.35rem] font-bold leading-tight tracking-[-0.02em] text-[#0b1530]">{role.label}</span>
+                  <Icon name={role.icon} className="relative h-8 w-8" />
+                  {/* El título toma el color del perfil (hereda el `text-*` de la tarjeta). */}
+                  <span className="relative mt-3 block text-[1.35rem] font-bold leading-tight tracking-[-0.02em]">{role.label}</span>
                   <span className="relative mt-1 flex items-end justify-between gap-3">
                     <span className="text-[14px] leading-5 text-slate-600">{role.hint}</span>
                     <Icon name="arrow" className="h-5 w-5 shrink-0 transition group-hover:translate-x-1" />
@@ -401,7 +400,7 @@ export default function Home() {
               <p className="mt-3 text-sm leading-6 text-slate-600">
                 Solicitá cotizaciones a proveedores verificados y compará opciones en un solo lugar.
               </p>
-              <Link className={`${primaryCta} mt-6`} href="/acceso">
+              <Link className={`${primaryCta} mt-6`} href="/acceso?perfil=cliente">
                 <span className="inline-flex items-center gap-2 text-white">
                   Iniciar una cotización
                   <Icon name="arrow" className="h-4 w-4" />
@@ -423,7 +422,7 @@ export default function Home() {
               </p>
               <Link
                 className="mt-6 inline-flex h-12 items-center justify-center gap-2 rounded-[10px] border border-[#1f5bff]/50 bg-white px-6 text-sm font-semibold"
-                href="/acceso"
+                href="/acceso?perfil=proveedor"
               >
                 <span className="inline-flex items-center gap-2 text-[#1f5bff]">
                   Quiero vender en ATAR

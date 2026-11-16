@@ -9,6 +9,7 @@ import SupplierShowcaseCard from '@/components/marketing/supplier-showcase-card'
 import { HeroLead, HeroSearch, HeroSuggestions, HeroTitle } from '@/components/marketing/page-hero';
 import Reveal from '@/components/ui/reveal';
 import { atarApi, type RequestCatalogCategoryRecord, type SupplierDirectoryRecord } from '@/lib/atar-api';
+import { isCategoryHidden } from '@/lib/hidden-categories';
 import { categorySearchTerms } from '@/lib/regional-terms';
 
 type ProductCategory = {
@@ -80,7 +81,7 @@ const FALLBACK_CATEGORIES: ProductCategory[] = [
   },
   {
     id: 'hilo-pp',
-    label: 'Hilo multifilamento de PP',
+    label: 'Hilo industrial (Multifilamento PP)',
     subtitle: 'Hilos de polipropileno de alta tenacidad para tejeduría, costura, agricultura y aplicaciones técnicas.',
     imageSrc: '/hilomulti.png',
     imageClassName: 'object-cover',
@@ -108,7 +109,7 @@ const FALLBACK_CATEGORIES: ProductCategory[] = [
   },
 ];
 
-const MOST_SEARCHED = ['Big Bags', 'Polímeros', 'Maquinarias', 'Bolsas', 'Tintas'];
+const MOST_SEARCHED = ['Big Bags', 'Bolsas PP', 'Maquinarias', 'Tintas'];
 
 /* Iconos ------------------------------------------------------------------ */
 
@@ -173,14 +174,14 @@ const ALL_FAMILIES: ProductFamily[] = [
   {
     id: 'envases',
     title: 'Envases y embalajes',
-    tab: 'Big Bags y sacos',
+    tab: 'Big Bags y bolsas',
     image: '/bigbags.png',
     items: [
       { label: 'Big Bags', category: 'Big Bags' },
       { label: 'Sacos', category: 'Sacos' },
       { label: 'Bolsas PP', category: 'Bolsas PP' },
     ],
-    keywords: ['big bag', 'bolsa', 'saco', 'fibc', 'envase', 'embalaje'],
+    keywords: ['big bag', 'costal', 'bolsa', 'saco', 'fibc', 'envase', 'embalaje'],
   },
   {
     id: 'telas',
@@ -201,7 +202,7 @@ const ALL_FAMILIES: ProductFamily[] = [
     tab: 'Hilos',
     image: '/hilomulti.png',
     items: [
-      { label: 'Hilo multifilamento PP', category: 'Hilo multifilamento de PP' },
+      { label: 'Hilo industrial (Multifilamento PP)', category: 'Hilo multifilamento de PP' },
       { label: 'Hilo retorcido', category: 'Hilo retorcido y Mallas' },
       { label: 'Cuerdas', category: 'Cuerdas/Cordones' },
       { label: 'Cordones', category: 'Cuerdas/Cordones' },
@@ -226,10 +227,11 @@ const ALL_FAMILIES: ProductFamily[] = [
     image: '/tintas.png',
     items: [
       { label: 'Tintas', category: 'Tintas' },
+      { label: 'Planchas para flexografía (clisé)', category: 'Fotopolímeros' },
       { label: 'Cintas', category: 'Cintas/Cintillas' },
       { label: 'Cintillas', category: 'Cintas/Cintillas' },
     ],
-    keywords: ['tinta', 'cinta', 'cintilla', 'impres'],
+    keywords: ['tinta', 'cinta', 'cintilla', 'impres', 'clise', 'cliché', 'fotopolimero', 'plancha', 'flexograf'],
   },
   {
     id: 'maquinaria',
@@ -245,7 +247,12 @@ const ALL_FAMILIES: ProductFamily[] = [
   },
 ];
 
-const FAMILIES = ALL_FAMILIES;
+// Los rubros ocultos (hoy, Polímeros y Sacos) no se muestran, y tampoco las
+// familias que se quedan sin rubros.
+const FAMILIES = ALL_FAMILIES.map((family) => ({
+  ...family,
+  items: family.items.filter((item) => !isCategoryHidden(item.category)),
+})).filter((family) => family.items.length > 0);
 
 function normalize(value: string) {
   return value
@@ -295,6 +302,7 @@ function ProductosWithQuery() {
 }
 
 function ProductosContent({ initialQuery }: { initialQuery: string }) {
+  const { categoryName } = useRegion();
   // El fallback arranca vacio a proposito: si se usa como estado inicial, la
   // pantalla pinta el catalogo hardcodeado y despues lo reemplaza por el de la
   // base, y se ve el parpadeo. Solo se usa si la API falla o viene vacia.
@@ -317,7 +325,7 @@ function ProductosContent({ initialQuery }: { initialQuery: string }) {
         return;
       }
       setCategories(
-        catalog.status === 'fulfilled' && catalog.value.length > 0 ? catalog.value.map(mapCategory) : FALLBACK_CATEGORIES,
+        catalog.status === 'fulfilled' && catalog.value.length > 0 ? catalog.value.map(mapCategory) : FALLBACK_CATEGORIES.filter((item) => !isCategoryHidden(item.label)),
       );
       if (stats.status === 'fulfilled') {
         setSupplierCount(stats.value.suppliersCount);
@@ -378,7 +386,7 @@ function ProductosContent({ initialQuery }: { initialQuery: string }) {
                 setSearch(term);
                 scrollToFamilies();
               }}
-              terms={MOST_SEARCHED}
+              terms={MOST_SEARCHED.map(categoryName)}
             />
           </div>
 
@@ -421,7 +429,7 @@ function ProductosContent({ initialQuery }: { initialQuery: string }) {
               No hay familias que coincidan con “{search}”.
             </div>
           ) : (
-            <div className="mt-10 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
+            <div className="mt-10 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-5">
               {visibleFamilies.map((family, index) => (
                 <Reveal key={family.id} className="h-full" delay={index * 70}>
                   <FamilyCard family={family} />

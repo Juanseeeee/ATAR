@@ -6,7 +6,7 @@
  * Polímeros = Polipropileno + Polietileno. "Polímeros" es el nombre de la
  * familia en el sitio público.
  */
-const HIDDEN_CATEGORY_LABELS = ['Polipropileno', 'Polietileno', 'Polímeros'];
+const HIDDEN_CATEGORY_LABELS = ['Polipropileno', 'Polietileno', 'Polímeros', 'Sacos'];
 
 function normalize(value: string) {
   return value

@@ -1,22 +1,29 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth/auth-provider';
+import { SupplierAvatar } from '@/components/quotes/supplier-avatar';
 import { LoadingState } from '@/components/ui/spinner';
 import { formatRequestCode } from '@/lib/request-code';
 import {
   atarApi,
   type OrderFulfillmentStatus,
-  type QuoteItemRecord,
   type QuoteRecord,
-  type QuoteStatus,
-  SUPPLIER_ROLE_LABELS,
-  type RequestEventRecord,
-  type RequestItemRecord,
   type RequestRecord,
 } from '@/lib/atar-api';
+import {
+  bestPriceOf,
+  comparableQuotesOf,
+  coverageOf,
+  fastestOf,
+  formatMoneyShort,
+  invitedSupplierNames,
+  requestedQuantity,
+  requestImageFor,
+} from '@/lib/quote-compare';
 
 function formatCurrency(value: number | null, currency = 'ARS') {
   if (typeof value !== 'number') {
@@ -30,221 +37,27 @@ function formatCurrency(value: number | null, currency = 'ARS') {
   }).format(value);
 }
 
-// Celda de un producto dentro de la tabla comparativa: precio/subtotal, o el
-// estado de disponibilidad (no disponible / alternativa) con su nota.
-function QuoteCell({
-  line,
-  quantity,
-  currency,
-}: {
-  line: QuoteItemRecord | null;
-  quantity: number | null;
-  currency: string;
-}) {
-  if (!line) {
-    return <span className="text-slate-300">—</span>;
-  }
-  if (line.availability === 'UNAVAILABLE') {
-    return (
-      <div>
-        <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-semibold text-rose-600">No disp.</span>
-        {line.note ? <p className="mt-1 text-[10px] leading-4 text-slate-500">{line.note}</p> : null}
-      </div>
-    );
-  }
-  const subtotal = quantity != null && line.unitPrice != null ? line.unitPrice * quantity : null;
-  return (
-    <div>
-      <div className="flex flex-wrap items-center gap-1">
-        <span className="font-semibold tabular-nums text-slate-900">
-          {line.unitPrice != null ? `${formatCurrency(line.unitPrice, currency)}/u` : '—'}
-        </span>
-        {line.availability === 'ALTERNATIVE' ? (
-          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-600">Alt.</span>
-        ) : null}
-      </div>
-      {subtotal != null ? (
-        <p className="tabular-nums text-[10px] text-slate-600">{formatCurrency(subtotal, currency)}</p>
-      ) : null}
-      {line.note ? <p className="mt-1 text-[10px] leading-4 text-slate-500">{line.note}</p> : null}
-    </div>
-  );
-}
+// Etapas de la solicitud que se muestran arriba del detalle.
+const REQUEST_STAGES = ['Publicada', 'Recibiendo propuestas', 'Comparando', 'Compra asignada', 'Entregado'] as const;
 
-// Tabla "manzanas con manzanas": una columna por proveedor, una fila por
-// producto (si el pedido es multi-producto) + total, plazo, condiciones y la
-// acción de adjudicar. Deslizable en horizontal para no romper el layout.
-function QuoteComparison({
-  quotes,
-  items,
-  bestPriceId,
-  fastestId,
-  awardedQuoteId,
-  canAward,
-  awardingQuoteId,
-  onAward,
-}: {
-  quotes: QuoteRecord[];
-  items: RequestItemRecord[];
-  bestPriceId: string | null;
-  fastestId: string | null;
-  awardedQuoteId: string | null;
-  canAward: boolean;
-  awardingQuoteId: string | null;
-  onAward: (quoteId: string) => void;
-}) {
-  const multiProduct = items.length > 1;
-  return (
-    <div className="mt-4 overflow-hidden rounded-[12px] border border-slate-300 bg-white">
-      <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-        <p className="text-[13px] font-semibold text-slate-900">Comparar lado a lado</p>
-        <p className="hidden text-[11px] text-slate-600 sm:block">Deslizá para ver todos los proveedores →</p>
-      </div>
-      <div className="overflow-x-auto">
-        <table
-          className="w-full border-collapse text-left"
-          style={{ minWidth: `${150 + quotes.length * 150}px` }}
-        >
-          <thead>
-            <tr className="border-b border-slate-200">
-              <th className="sticky left-0 z-10 w-[150px] bg-white px-4 py-3 align-bottom text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-600">
-                Proveedor
-              </th>
-              {quotes.map((quote) => {
-                const awarded = quote.id === awardedQuoteId;
-                const covered = multiProduct
-                  ? items.filter((it) => {
-                      const l = quote.items?.find((x) => x.requestItemId === it.id);
-                      return l && l.availability !== 'UNAVAILABLE' && l.unitPrice != null;
-                    }).length
-                  : null;
-                const partial = covered != null && covered < items.length;
-                return (
-                  <th
-                    key={quote.id}
-                    className={`min-w-[150px] px-3 py-3 align-bottom ${awarded ? 'bg-emerald-50/60' : ''}`}
-                  >
-                    <p className="truncate text-[13px] font-semibold text-slate-950">
-                      {quote.supplierCompany?.name ?? 'Proveedor'}
-                    </p>
-                    {quote.supplierCompany?.supplierProfile?.supplierRole ? (
-                      <p className="mt-0.5 text-[10px] font-medium text-slate-600">
-                        {SUPPLIER_ROLE_LABELS[quote.supplierCompany.supplierProfile.supplierRole]}
-                      </p>
-                    ) : null}
-                    {covered != null ? (
-                      <p className={`mt-0.5 text-[10px] font-semibold ${partial ? 'text-amber-600' : 'text-emerald-600'}`}>
-                        {covered}/{items.length} productos
-                      </p>
-                    ) : null}
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {bestPriceId === quote.id ? (
-                        <span className="rounded-full bg-[#eef3ff] px-2 py-0.5 text-[9px] font-semibold text-[#1847ff]">Mejor precio</span>
-                      ) : null}
-                      {fastestId === quote.id ? (
-                        <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[9px] font-semibold text-teal-700">Más rápida</span>
-                      ) : null}
-                      {awarded ? (
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-semibold text-emerald-700">Asignada</span>
-                      ) : null}
-                    </div>
-                  </th>
-                );
-              })}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {multiProduct
-              ? items.map((item) => (
-                  <tr key={item.id} className="bg-white even:bg-[#eef1f7]">
-                    <th className="sticky left-0 z-10 bg-inherit px-4 py-2.5 text-left align-top">
-                      <p className="text-[12px] font-semibold text-slate-800">{item.productName}</p>
-                      {item.quantity ? (
-                        <p className="text-[10px] text-slate-600">
-                          {item.quantity} {item.unit ?? 'u.'}
-                        </p>
-                      ) : null}
-                    </th>
-                    {quotes.map((quote) => {
-                      const line = quote.items?.find((l) => l.requestItemId === item.id) ?? null;
-                      const awarded = quote.id === awardedQuoteId;
-                      return (
-                        <td key={quote.id} className={`px-3 py-2.5 align-top text-[12px] ${awarded ? 'bg-emerald-50/40' : ''}`}>
-                          <QuoteCell line={line} quantity={item.quantity ?? null} currency={quote.currency} />
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))
-              : null}
-            <tr className="bg-slate-50/70">
-              <th className="sticky left-0 z-10 bg-slate-50/70 px-4 py-3 text-left text-[12px] font-semibold text-slate-700">
-                Total
-              </th>
-              {quotes.map((quote) => {
-                const best = bestPriceId === quote.id;
-                const awarded = quote.id === awardedQuoteId;
-                return (
-                  <td key={quote.id} className={`px-3 py-3 align-top ${awarded ? 'bg-emerald-50/60' : ''}`}>
-                    <span className={`text-[15px] font-bold tabular-nums ${best ? 'text-[#1847ff]' : 'text-slate-950'}`}>
-                      {formatCurrency(quote.amount, quote.currency)}
-                    </span>
-                  </td>
-                );
-              })}
-            </tr>
-            <tr>
-              <th className="sticky left-0 z-10 bg-white px-4 py-2.5 text-left text-[12px] font-semibold text-slate-500">
-                Plazo de entrega
-              </th>
-              {quotes.map((quote) => {
-                const fast = fastestId === quote.id;
-                return (
-                  <td key={quote.id} className="px-3 py-2.5 text-[12px] tabular-nums">
-                    <span className={fast ? 'font-semibold text-teal-700' : 'text-slate-700'}>
-                      {typeof quote.leadTimeDays === 'number' ? `${quote.leadTimeDays} días` : 'A convenir'}
-                    </span>
-                  </td>
-                );
-              })}
-            </tr>
-            <tr>
-              <th className="sticky left-0 z-10 bg-white px-4 py-2.5 text-left text-[12px] font-semibold text-slate-500">
-                Condiciones de pago
-              </th>
-              {quotes.map((quote) => (
-                <td key={quote.id} className="px-3 py-2.5 text-[12px] text-slate-700">
-                  {quote.paymentTerms || 'A convenir'}
-                </td>
-              ))}
-            </tr>
-            {canAward ? (
-              <tr>
-                <th className="sticky left-0 z-10 bg-white px-4 py-3" aria-hidden="true" />
-                {quotes.map((quote) => {
-                  const awarding = awardingQuoteId === quote.id;
-                  return (
-                    <td key={quote.id} className="px-3 py-3 align-top">
-                      {quote.status === 'SUBMITTED' ? (
-                        <button
-                          type="button"
-                          disabled={Boolean(awardingQuoteId)}
-                          onClick={() => onAward(quote.id)}
-                          className="inline-flex h-9 w-full items-center justify-center rounded-[10px] bg-[#1847ff] px-3 text-[12px] font-semibold text-white transition hover:bg-[#0f3ff5] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {awarding ? 'Asignando...' : 'Elegir'}
-                        </button>
-                      ) : null}
-                    </td>
-                  );
-                })}
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+function stageIndexOf(request: RequestRecord | null, comparableCount: number) {
+  if (!request) return 0;
+  switch (request.status) {
+    case 'DRAFT':
+      return 0;
+    case 'PUBLISHED':
+    case 'REVIEWING':
+      return comparableCount > 0 ? 2 : 1;
+    case 'AWARDED':
+    case 'NEGOTIATING':
+      return 3;
+    case 'ORDER_ISSUED':
+      return 4;
+    case 'COMPLETED':
+      return REQUEST_STAGES.length;
+    default:
+      return 1;
+  }
 }
 
 function compareQuotes(a: QuoteRecord, b: QuoteRecord) {
@@ -281,18 +94,6 @@ function toDateInputValue(value: string | null | undefined) {
   }
 
   return new Date(value).toISOString().slice(0, 10);
-}
-
-function getQuoteStatusStyles(status: QuoteStatus) {
-  if (status === 'AWARDED') {
-    return 'bg-emerald-400/15 text-emerald-100 border border-emerald-300/30';
-  }
-
-  if (status === 'REJECTED') {
-    return 'bg-rose-400/15 text-rose-100 border border-rose-300/30';
-  }
-
-  return 'bg-white/10 text-sky-50 border border-white/15';
 }
 
 function getRequestStatusStyles(status: RequestRecord['status']) {
@@ -425,25 +226,7 @@ function parseRequestDescription(description: string) {
     });
 }
 
-function getDetailIcon(label: string) {
-  const normalized = label.toLowerCase();
-
-  if (normalized.includes('producto')) return 'package';
-  if (normalized.includes('material')) return 'layers';
-  if (normalized.includes('gramaje') || normalized.includes('cantidad')) return 'scale';
-  if (normalized.includes('medidas') || normalized.includes('medida')) return 'ruler';
-  if (normalized.includes('fuelle') || normalized.includes('laminado') || normalized.includes('micro') || normalized.includes('cierre')) return 'grid';
-  if (normalized.includes('impres')) return 'printer';
-  if (normalized.includes('entrega')) return 'pin';
-  if (normalized.includes('fecha')) return 'calendar';
-  if (normalized.includes('horario')) return 'clock';
-  if (normalized.includes('contacto')) return 'user';
-  if (normalized.includes('telefono')) return 'phone';
-  if (normalized.includes('archivo') || normalized.includes('adjuntar')) return 'file';
-  return 'dot';
-}
-
-function DetailIcon({ type }: { type: ReturnType<typeof getDetailIcon> }) {
+function DetailIcon({ type }: { type: string }) {
   if (type === 'package') {
     return (
       <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
@@ -540,7 +323,6 @@ export default function BuyerRequestDetailPage() {
   const [request, setRequest] = useState<RequestRecord | null>(null);
   const [quotes, setQuotes] = useState<QuoteRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [awardingQuoteId, setAwardingQuoteId] = useState<string | null>(null);
   const [progressingAction, setProgressingAction] = useState<
     'START_NEGOTIATION' | 'ISSUE_ORDER' | 'CONFIRM_RECEIPT' | null
   >(null);
@@ -595,6 +377,11 @@ export default function BuyerRequestDetailPage() {
         }
 
         await syncRequestState(fresh.accessToken);
+        // Vuelta desde el comparador después de asignar la compra.
+        if (!cancelled && new URLSearchParams(window.location.search).get('asignada') === '1') {
+          setMessage('Listo, asignaste la compra. El proveedor ya recibió la notificación.');
+          window.history.replaceState(null, '', window.location.pathname);
+        }
       } catch (detailError) {
         if (!cancelled) {
           setError(detailError instanceof Error ? detailError.message : 'No se pudo cargar el detalle.');
@@ -620,40 +407,6 @@ export default function BuyerRequestDetailPage() {
       notes: request?.order?.notes ?? '',
     });
   }, [request?.order]);
-
-  async function handleAward(quoteId: string) {
-    if (!session?.accessToken || !request) {
-      return;
-    }
-
-    const selectedQuote = quotes.find((quote) => quote.id === quoteId);
-    if (!selectedQuote) {
-      return;
-    }
-
-    const supplierName = selectedQuote.supplierCompany?.name ?? 'este proveedor';
-    const amountLabel = formatCurrency(selectedQuote.amount, selectedQuote.currency);
-    const confirmed = window.confirm(
-      `Vas a asignarle la compra a ${supplierName} por ${amountLabel}.\n\nLas demas cotizaciones quedaran rechazadas y la solicitud se cerrara para nuevas propuestas.`,
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
-    try {
-      setAwardingQuoteId(quoteId);
-      setError(null);
-      setMessage(null);
-      await atarApi.awardQuote(request.id, { quoteId }, session.accessToken);
-      await syncRequestState(session.accessToken);
-      setMessage(`Le asignaste la compra a ${supplierName}. Ya recibio la notificacion.`);
-    } catch (awardError) {
-      setError(awardError instanceof Error ? awardError.message : 'No se pudo adjudicar la cotizacion.');
-    } finally {
-      setAwardingQuoteId(null);
-    }
-  }
 
   async function handleDeleteRequest() {
     if (!session?.accessToken || !request) {
@@ -790,67 +543,62 @@ export default function BuyerRequestDetailPage() {
   }, [quotes, request?.awardedQuoteId]);
 
   // Cotizaciones vigentes: las rechazadas quedan fuera de la comparacion.
-  const comparableQuotes = useMemo(
-    () => quotes.filter((quote) => quote.status !== 'REJECTED'),
-    [quotes],
-  );
-  const bestPrice = useMemo(() => {
-    return (
-      comparableQuotes
-        .filter((quote) => typeof quote.amount === 'number')
-        .sort((a, b) => (a.amount ?? 0) - (b.amount ?? 0))[0] ?? null
-    );
-  }, [comparableQuotes]);
-  const fastest = useMemo(() => {
-    return (
-      comparableQuotes
-        .filter((quote) => typeof quote.leadTimeDays === 'number')
-        .sort((a, b) => (a.leadTimeDays ?? 9999) - (b.leadTimeDays ?? 9999))[0] ?? null
-    );
-  }, [comparableQuotes]);
+  const comparableQuotes = useMemo(() => comparableQuotesOf(quotes), [quotes]);
+  const bestPrice = useMemo(() => bestPriceOf(comparableQuotes, request?.items ?? []), [comparableQuotes, request?.items]);
+  const fastest = useMemo(() => fastestOf(comparableQuotes), [comparableQuotes]);
   const awardedQuote = useMemo(
     () => quotes.find((quote) => quote.id === request?.awardedQuoteId) ?? null,
     [quotes, request?.awardedQuoteId],
   );
-  const canAward = Boolean(request) && !request?.awardedQuoteId && request?.status !== 'CANCELLED';
+  const stageIndex = stageIndexOf(request, comparableQuotes.length);
+  const invitedCount = request ? Math.max(invitedSupplierNames(request, quotes).length, quotes.length) : 0;
+  const respondedCount = quotes.filter((quote) => quote.status !== 'DRAFT').length;
 
-  // Ayuda de decisión (no una matriz ponderada): surge los ejes en lenguaje
-  // simple para no abrumar a compradores inexpertos. Precio y plazo se
-  // resaltan; se avisa si alguna cotización no cubre todos los productos.
-  const decisionHints = useMemo(() => {
-    if (comparableQuotes.length < 2) {
-      return [];
+  // Bloque "próximo paso": qué tiene que hacer el comprador ahora.
+  const nextStep = useMemo((): { title: string; text: string; action?: { label: string; href: string } } => {
+    const compareHref = `/dashboard/comprador/solicitudes/${requestId}/comparar`;
+    if (!request) return { title: '', text: '' };
+    if (request.status === 'DRAFT') {
+      return {
+        title: 'Borrador sin publicar',
+        text: 'Terminá de completarla y publicala para que los proveedores te coticen.',
+        action: { label: 'Continuar', href: `/dashboard/comprador/solicitudes/nueva?edit=${request.id}` },
+      };
     }
-    const hints: string[] = [];
-    const cheapestName = bestPrice?.supplierCompany?.name ?? 'un proveedor';
-    const fastestName = fastest?.supplierCompany?.name ?? 'un proveedor';
-    if (bestPrice && fastest && bestPrice.id === fastest.id) {
-      hints.push(`${cheapestName} ofrece el mejor precio y la entrega más rápida.`);
-    } else {
-      if (bestPrice) {
-        hints.push(`Mejor precio: ${cheapestName} (${formatCurrency(bestPrice.amount, bestPrice.currency)}).`);
-      }
-      if (fastest && typeof fastest.leadTimeDays === 'number') {
-        hints.push(`Entrega más rápida: ${fastestName} (${fastest.leadTimeDays} días).`);
-      }
+    if (request.status === 'COMPLETED') {
+      return { title: 'Operación completada', text: 'Recibiste el pedido y el ciclo de esta solicitud está cerrado.' };
     }
-    const total = request?.items?.length ?? 0;
-    if (total > 1) {
-      const partial = comparableQuotes.filter((quote) => {
-        const covered = (request?.items ?? []).filter((it) => {
-          const l = quote.items?.find((x) => x.requestItemId === it.id);
-          return l && l.availability !== 'UNAVAILABLE' && l.unitPrice != null;
-        }).length;
-        return covered < total;
-      }).length;
-      if (partial > 0) {
-        hints.push(
-          `${partial} de ${comparableQuotes.length} cotizaciones no cubren todos los productos: revisá la cobertura antes de elegir.`,
-        );
+    if (awardedQuote) {
+      if (request.status === 'ORDER_ISSUED') {
+        return {
+          title: 'Pedido en curso',
+          text: 'El proveedor está preparando tu pedido. Seguí su avance y confirmá la recepción cuando llegue.',
+          action: { label: 'Ver seguimiento', href: '#orden' },
+        };
       }
+      return {
+        title: 'Compra asignada',
+        text: 'Emití la orden de compra para que el proveedor empiece a preparar el pedido.',
+        action: { label: 'Emitir la orden', href: '#orden' },
+      };
     }
-    return hints;
-  }, [comparableQuotes, bestPrice, fastest, request?.items]);
+    if (comparableQuotes.length === 0) {
+      return {
+        title: 'Esperando propuestas',
+        text: 'Ya les llegó tu solicitud a los proveedores. Te avisamos apenas uno responda.',
+      };
+    }
+    const allIn = invitedCount > 0 && respondedCount >= invitedCount;
+    const plural = comparableQuotes.length === 1 ? 'propuesta' : 'propuestas';
+    return {
+      title: allIn ? 'Ya podés decidir' : `Recibiste ${comparableQuotes.length} ${plural}`,
+      text:
+        comparableQuotes.length > 1
+          ? `${allIn ? `Llegaron las ${comparableQuotes.length} propuestas.` : 'Todavía pueden llegar más.'} Comparalas lado a lado y asigná la compra cuando estés listo.`
+          : 'Revisala en detalle y asigná la compra cuando estés listo, o esperá a que respondan los demás.',
+      action: { label: comparableQuotes.length > 1 ? 'Abrir comparador' : 'Revisar propuesta', href: compareHref },
+    };
+  }, [request, requestId, awardedQuote, comparableQuotes.length, invitedCount, respondedCount]);
   const fulfillmentIndex = request?.order ? FULFILLMENT_STEPS.indexOf(request.order.fulfillmentStatus) : -1;
   const parsedDescription = useMemo(() => parseRequestDescription(request?.description ?? ''), [request?.description]);
   const deliveryItems = useMemo(() => {
@@ -1048,43 +796,70 @@ export default function BuyerRequestDetailPage() {
     );
   }
 
+  const compareHref = `/dashboard/comprador/solicitudes/${requestId}/comparar`;
+  const isAwardedFlow = request?.status === 'AWARDED' || request?.status === 'NEGOTIATING' || request?.status === 'ORDER_ISSUED';
+  const quantity = request ? requestedQuantity(request) : null;
+  const deliveryWhen =
+    request?.deliveryMode === 'asap' ? 'lo antes posible' : request?.dueDate ? formatDate(request.dueDate) : null;
+  const deliveryJoined = [request?.deliveryCity, deliveryWhen].filter(Boolean).join(' · ');
+  const deliverySummary = deliveryJoined ? deliveryJoined.charAt(0).toUpperCase() + deliveryJoined.slice(1) : 'A coordinar';
+  const prices = comparableQuotes
+    .filter((quote) => (request?.items?.length ?? 0) < 2 || coverageOf(quote, request?.items ?? []).kind !== 'partial')
+    .map((quote) => quote.amount)
+    .filter((amount): amount is number => typeof amount === 'number');
+
   return (
     <main className="min-h-screen overflow-x-hidden bg-[#eef1f7] text-slate-950">
       <div className="flex w-full flex-col gap-5 py-2 sm:py-3">
-        <Link
-          className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 transition hover:text-slate-700"
-          href="/dashboard/comprador/solicitudes"
-        >
-          <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-            <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-          </svg>
-          Volver a solicitudes
-        </Link>
+        <nav className="flex min-w-0 items-center gap-1.5 text-[13.5px] font-semibold text-slate-500">
+          <Link className="inline-flex items-center gap-1 transition hover:text-slate-800" href="/dashboard/comprador/solicitudes">
+            <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+              <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+            </svg>
+            Mis solicitudes
+          </Link>
+          <span className="text-slate-300">/</span>
+          <span className="truncate text-slate-900">{request?.title ?? 'Solicitud'}</span>
+        </nav>
 
         {error ? <div className="rounded-[12px] border border-rose-200 bg-rose-100 px-5 py-4 text-sm text-rose-700">{error}</div> : null}
         {message ? <div className="rounded-[12px] border border-emerald-200 bg-emerald-100 px-5 py-4 text-sm text-emerald-700">{message}</div> : null}
 
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.55fr)_360px] 2xl:grid-cols-[minmax(0,1.7fr)_380px]">
-          <section data-tour="request-main" className="rounded-[12px] border border-slate-300 bg-white p-4 shadow-[0_12px_36px_rgba(15,23,42,0.04)] sm:p-6">
-            <div className="flex flex-col gap-4 border-b border-slate-300 pb-6 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#1847ff]">Detalle de solicitud</p>
-                <h1 className="mt-1 text-[24px] font-bold tracking-[-0.03em] text-slate-950 sm:text-[28px] lg:text-[30px]">{request?.title ?? 'Solicitud no encontrada'}</h1>
-                <div className="mt-3 flex flex-wrap items-center gap-3 text-[12px] text-slate-500">
-                  <span>Solicitud: <span className="font-semibold text-[#334155]">{formatRequestCode(request?.id ?? requestId)}</span></span>
-                  <span className="h-1 w-1 rounded-full bg-slate-300" />
-                  <span>Creada el {requestCreatedLabel}</span>
+        {/* ==================== ENCABEZADO + ETAPAS ==================== */}
+        <section data-tour="request-main" className="rounded-[16px] border border-slate-300 bg-white shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
+          <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:p-6">
+            <div className="flex min-w-0 flex-1 items-start gap-4">
+              {request ? (
+                <span className="relative hidden h-16 w-16 shrink-0 overflow-hidden rounded-[14px] bg-slate-100 sm:block">
+                  <Image alt="" className="object-cover" fill sizes="64px" src={requestImageFor(request)} />
+                </span>
+              ) : null}
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2 text-[12.5px] text-slate-500">
                   {request ? (
-                    <>
-                      <span className="h-1 w-1 rounded-full bg-slate-300" />
-                      <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${getRequestStatusStyles(request.status)}`}>
-                        {getRequestStatusLabel(request.status)}
-                      </span>
-                    </>
+                    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[12px] font-bold ${getRequestStatusStyles(request.status)}`}>
+                      {getRequestStatusLabel(request.status)}
+                    </span>
                   ) : null}
+                  <span>
+                    {formatRequestCode(request?.id ?? requestId)} · creada el {requestCreatedLabel}
+                  </span>
                 </div>
+                <h1 className="mt-1.5 text-[24px] font-extrabold leading-tight tracking-[-0.03em] text-slate-950 sm:text-[28px]">
+                  {request?.title ?? 'Solicitud no encontrada'}
+                </h1>
               </div>
-              <div className="relative shrink-0" ref={actionsRef}>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                className="hidden h-10 items-center gap-2 rounded-[10px] border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:inline-flex"
+                onClick={handleDownloadSpecs}
+                type="button"
+              >
+                <DetailIcon type="file" />
+                Descargar PDF
+              </button>
+              <div className="relative" ref={actionsRef}>
                 <button
                   aria-expanded={actionsOpen}
                   className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
@@ -1096,11 +871,10 @@ export default function BuyerRequestDetailPage() {
                     <path d="M6 9l6 6 6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
                   </svg>
                 </button>
-
                 {actionsOpen ? (
-                  <div className="absolute right-0 top-[calc(100%+8px)] z-40 w-[220px] rounded-[12px] border border-slate-300 bg-white p-1.5 shadow-[0_20px_50px_rgba(15,23,42,0.14)]">
+                  <div className="absolute right-0 top-[calc(100%+8px)] z-40 w-[230px] rounded-[12px] border border-slate-300 bg-white p-1.5 shadow-[0_20px_50px_rgba(15,23,42,0.14)]">
                     <button
-                      className="flex w-full items-center gap-2.5 rounded-[12px] px-3 py-2.5 text-left text-[13px] font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-[13px] font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={!canEditRequest}
                       onClick={() => {
                         setActionsOpen(false);
@@ -1108,49 +882,40 @@ export default function BuyerRequestDetailPage() {
                       }}
                       type="button"
                     >
-                      <svg aria-hidden="true" className="h-4 w-4 text-slate-600" fill="none" viewBox="0 0 24 24">
-                        <path d="M12 20h9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                        <path d="M16.5 3.5a2.1 2.1 0 113 3L7 19l-4 1 1-4 12.5-12.5z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                      </svg>
                       Editar solicitud
                     </button>
                     <button
-                      className="flex w-full items-center gap-2.5 rounded-[12px] px-3 py-2.5 text-left text-[13px] font-medium text-slate-700 transition hover:bg-slate-50"
+                      className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-[13px] font-medium text-slate-700 transition hover:bg-slate-50"
                       onClick={() => {
                         setActionsOpen(false);
                         handleDownloadSpecs();
                       }}
                       type="button"
                     >
-                      <svg aria-hidden="true" className="h-4 w-4 text-slate-600" fill="none" viewBox="0 0 24 24">
-                        <path d="M12 3v12M7 10l5 5 5-5M5 21h14" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                      </svg>
                       Descargar especificaciones
                     </button>
+                    {quotes.length > 0 ? (
+                      <Link className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-[13px] font-medium text-slate-700 transition hover:bg-slate-50" href={compareHref}>
+                        Comparar propuestas
+                      </Link>
+                    ) : null}
                     <div className="my-1 h-px bg-slate-100" />
                     {canCancelRequest ? (
                       <button
-                        className="flex w-full items-center gap-2.5 rounded-[12px] px-3 py-2.5 text-left text-[13px] font-medium text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-[13px] font-medium text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-50"
                         disabled={cancelling}
                         onClick={() => void handleCancelRequest()}
                         type="button"
                       >
-                        <svg aria-hidden="true" className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24">
-                          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
-                          <path d="M15 9l-6 6M9 9l6 6" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
-                        </svg>
                         {cancelling ? 'Cancelando...' : 'Cancelar solicitud'}
                       </button>
                     ) : null}
                     <button
-                      className="flex w-full items-center gap-2.5 rounded-[12px] px-3 py-2.5 text-left text-[13px] font-medium text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex w-full items-center gap-2.5 rounded-[10px] px-3 py-2.5 text-left text-[13px] font-medium text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
                       disabled={!canEditRequest || deleting}
                       onClick={() => void handleDeleteRequest()}
                       type="button"
                     >
-                      <svg aria-hidden="true" className="h-4 w-4 text-rose-500" fill="none" viewBox="0 0 24 24">
-                        <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m2 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                      </svg>
                       {deleting ? 'Eliminando...' : 'Eliminar solicitud'}
                     </button>
                     {!canEditRequest ? (
@@ -1162,664 +927,503 @@ export default function BuyerRequestDetailPage() {
                 ) : null}
               </div>
             </div>
+          </div>
 
-            <div className="space-y-6 pt-6">
-              <section>
-                <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef3ff] text-[#1847ff]">
-                    <DetailIcon type="file" />
-                  </span>
-                  <h2 className="min-w-0 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
-                    Productos solicitados{(request?.items?.length ?? 0) > 0 ? ` (${request?.items?.length})` : ''}
-                  </h2>
+          {request?.status === 'CANCELLED' ? (
+            <div className="mx-4 mb-5 rounded-[12px] bg-slate-100 px-4 py-3 text-[13.5px] text-slate-600 sm:mx-6">
+              Cancelaste esta solicitud. Queda en tu historial y los proveedores que cotizaron fueron notificados.
+            </div>
+          ) : (
+            <ol className="flex items-start overflow-x-auto px-2 pb-5 sm:justify-center sm:px-6">
+              {REQUEST_STAGES.map((stage, index) => {
+                const done = index < stageIndex;
+                const current = index === stageIndex;
+                return (
+                  <li key={stage} className="relative flex min-w-[88px] flex-1 flex-col items-center gap-1.5 text-center sm:max-w-[170px]">
+                    {index > 0 ? (
+                      <span className={`absolute right-1/2 top-[14px] h-[2px] w-full ${done || current ? 'bg-[#1f5bff]' : 'bg-slate-200'}`} />
+                    ) : null}
+                    <span
+                      className={`relative z-[1] flex h-7 w-7 items-center justify-center rounded-full border-2 ${
+                        done
+                          ? 'border-[#1f5bff] bg-[#1f5bff] text-white'
+                          : current
+                            ? 'border-[#1f5bff] bg-white shadow-[0_0_0_4px_#dfe8ff]'
+                            : 'border-slate-300 bg-white'
+                      }`}
+                    >
+                      {done ? (
+                        <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                          <path d="M5 12l4.5 4.5L19 7" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
+                        </svg>
+                      ) : current ? (
+                        <span className="h-2.5 w-2.5 rounded-full bg-[#1f5bff]" />
+                      ) : null}
+                    </span>
+                    <span className={`px-1 text-[12px] font-semibold leading-tight ${done || current ? 'text-slate-900' : 'text-slate-400'}`}>{stage}</span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+
+          <dl className="grid grid-cols-2 border-t border-slate-200 lg:grid-cols-4">
+            {[
+              ['Cantidad', quantity ? `${quantity.value.toLocaleString('es-AR')} ${quantity.unit}` : 'A definir'],
+              ['Entrega', deliverySummary],
+              ['Proveedores', invitedCount > 0 ? `${respondedCount} de ${invitedCount} respondieron` : 'Sin proveedores aún'],
+              awardedQuote
+                ? ['Monto asignado', formatCurrency(awardedQuote.amount, awardedQuote.currency)]
+                : [
+                    'Rango de precios',
+                    prices.length === 0
+                      ? 'Sin propuestas'
+                      : prices.length === 1
+                        ? formatCurrency(prices[0])
+                        : `${formatMoneyShort(Math.min(...prices))} – ${formatMoneyShort(Math.max(...prices))}`,
+                  ],
+            ].map(([label, value], index) => (
+              <div
+                key={label}
+                className={`px-4 py-3.5 sm:px-6 ${index % 2 === 1 ? 'border-l border-slate-200' : ''} ${index >= 2 ? 'border-t border-slate-200 lg:border-t-0' : ''} ${index === 2 ? 'lg:border-l' : ''}`}
+              >
+                <dt className="text-[12px] font-semibold text-slate-500">{label}</dt>
+                <dd className="mt-0.5 text-[15px] font-bold text-slate-950">{value}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+
+        {/* ==================== PRÓXIMO PASO ==================== */}
+        {request && request.status !== 'CANCELLED' ? (
+          <section className="flex flex-col gap-4 rounded-[16px] bg-[linear-gradient(120deg,#0b1f66,#1f5bff)] p-5 text-white sm:p-6 lg:flex-row lg:items-center">
+            <div className="lg:w-[280px] lg:shrink-0">
+              <h2 className="text-[19px] font-extrabold tracking-[-0.02em]">{nextStep.title}</h2>
+              <p className="mt-1 text-[13.5px] leading-5 text-[#c4d4ff]">{nextStep.text}</p>
+              {nextStep.action ? (
+                nextStep.action.href.startsWith('#') ? (
+                  <a className="mt-4 inline-flex h-11 items-center gap-2 rounded-[11px] bg-white px-5 text-[14px] font-bold text-[#1238d6] transition hover:bg-[#eef3ff]" href={nextStep.action.href}>
+                    {nextStep.action.label}
+                    <span aria-hidden="true">→</span>
+                  </a>
+                ) : (
+                  <Link className="mt-4 inline-flex h-11 items-center gap-2 rounded-[11px] bg-white px-5 text-[14px] font-bold text-[#1238d6] transition hover:bg-[#eef3ff]" href={nextStep.action.href}>
+                    {nextStep.action.label}
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                )
+              ) : null}
+            </div>
+            {!awardedQuote && comparableQuotes.length > 0 ? (
+              <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
+                {comparableQuotes.slice(0, 3).map((quote) => (
+                  <Link
+                    key={quote.id}
+                    className="min-w-0 rounded-[12px] border border-white/20 bg-white/10 px-3.5 py-3 transition hover:bg-white/15"
+                    href={`/dashboard/comprador/cotizaciones/${quote.id}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate text-[12.5px] text-[#c4d4ff]">{quote.supplierCompany?.name ?? 'Proveedor'}</span>
+                      {comparableQuotes.length > 1 && quote.id === bestPrice?.id ? (
+                        <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Mejor precio</span>
+                      ) : quote.id === fastest?.id ? (
+                        <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">Más rápida</span>
+                      ) : null}
+                    </div>
+                    <p className="mt-1.5 text-[17px] font-extrabold tabular-nums">{formatCurrency(quote.amount, quote.currency)}</p>
+                    <p className="truncate text-[12px] text-[#c4d4ff]">
+                      {typeof quote.leadTimeDays === 'number' ? `${quote.leadTimeDays} días` : 'Plazo a convenir'}
+                      {quote.paymentTerms ? ` · ${quote.paymentTerms}` : ''}
+                    </p>
+                    {(() => {
+                      const coverage = coverageOf(quote, request.items ?? []);
+                      return coverage.kind === 'partial' ? (
+                        <p className="mt-1 text-[12px] font-semibold text-amber-200">
+                          Cotiza {coverage.covered} de {coverage.total} productos
+                        </p>
+                      ) : null;
+                    })()}
+                  </Link>
+                ))}
+              </div>
+            ) : awardedQuote ? (
+              <div className="flex flex-1 items-center gap-3 rounded-[12px] border border-white/20 bg-white/10 px-4 py-3.5">
+                <SupplierAvatar name={awardedQuote.supplierCompany?.name} size={44} />
+                <div className="min-w-0">
+                  <p className="truncate text-[15px] font-bold">{awardedQuote.supplierCompany?.name ?? 'Proveedor'}</p>
+                  <p className="text-[13px] text-[#c4d4ff]">
+                    {formatCurrency(awardedQuote.amount, awardedQuote.currency)}
+                    {typeof awardedQuote.leadTimeDays === 'number' ? ` · ${awardedQuote.leadTimeDays} días` : ''}
+                    {request.order ? ` · ${getFulfillmentLabel(request.order.fulfillmentStatus)}` : ''}
+                  </p>
                 </div>
-                {(request?.items?.length ?? 0) > 0 ? (
-                  <div className="mt-4 space-y-3">
-                    {(request?.items ?? []).map((item, index) => {
-                      const specRows = parseRequestDescription(item.specifications ?? '');
-                      return (
-                        <article key={item.id} className="rounded-[12px] border border-slate-300 bg-white p-4">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#1847ff]">Producto {index + 1}</p>
-                              <h3 className="mt-0.5 text-[16px] font-semibold text-slate-950">{item.productName}</h3>
-                              {item.category ? <p className="text-[12px] text-slate-500">{item.category}</p> : null}
-                            </div>
-                            <span className="shrink-0 rounded-full bg-slate-100 px-3 py-1 text-[12px] font-semibold text-slate-700">
-                              {item.quantity ? `${item.quantity} ${item.unit ?? 'u.'}` : 'Cantidad a definir'}
+                <Link className="ml-auto hidden shrink-0 text-[13px] font-semibold text-white underline-offset-4 hover:underline sm:block" href={compareHref}>
+                  Ver comparación
+                </Link>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.6fr)_360px] 2xl:grid-cols-[minmax(0,1.7fr)_380px]">
+          <div className="min-w-0 space-y-5">
+            {/* ==================== PRODUCTOS ==================== */}
+            <section className="rounded-[16px] border border-slate-300 bg-white p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">
+                  {(request?.items?.length ?? 0) > 1 ? `Productos solicitados (${request?.items?.length})` : 'Producto solicitado'}
+                </h2>
+                {canEditRequest ? (
+                  <Link className="text-[13px] font-semibold text-[#1f5bff]" href={`/dashboard/comprador/solicitudes/nueva?edit=${request?.id}`}>
+                    Editar
+                  </Link>
+                ) : null}
+              </div>
+              {(request?.items?.length ?? 0) > 0 ? (
+                <div className="mt-3 space-y-4">
+                  {(request?.items ?? []).map((item) => {
+                    const specRows = parseRequestDescription(item.specifications ?? '').filter((row) => row.label.toLowerCase() !== 'cantidad');
+                    return (
+                      <div key={item.id}>
+                        {(request?.items?.length ?? 0) > 1 ? (
+                          <div className="mb-2 flex items-center justify-between gap-3">
+                            <p className="text-[14.5px] font-bold">{item.productName}</p>
+                            <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[12px] font-semibold text-slate-700">
+                              {item.quantity ? `${item.quantity.toLocaleString('es-AR')} ${item.unit ?? 'u.'}` : 'Cantidad a definir'}
                             </span>
                           </div>
-                          {specRows.length ? (
-                            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                              {specRows.map((row, rowIndex) => (
-                                <div key={`${row.label}-${rowIndex}`} className="rounded-[12px] bg-[#eef1f7] px-3 py-2">
-                                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-600">{row.label}</p>
-                                  <p className="mt-0.5 text-[13px] font-medium leading-5 text-slate-900">{row.value || '-'}</p>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="mt-3 text-[12px] text-slate-600">Sin especificaciones adicionales.</p>
-                          )}
-                        </article>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
-                    {detailItems.map((item) => (
-                      <article key={`${item.label}-${item.value}`} className="rounded-[12px] border border-slate-300 bg-white px-4 py-4">
-                        <div className="flex items-center gap-2 text-slate-600">
-                          <DetailIcon type={getDetailIcon(item.label)} />
-                          <p className="text-[11px] font-semibold text-slate-600">{item.label}</p>
-                        </div>
-                        <p className="mt-3 text-[15px] font-semibold leading-6 text-slate-950">{item.value || '-'}</p>
-                      </article>
-                    ))}
-                  </div>
-                )}
-              </section>
-
-              {/* ==================== COTIZACIONES RECIBIDAS ==================== */}
-              <section className="border-t border-slate-300 pt-6">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef3ff] text-[#1847ff]">
-                    <DetailIcon type="scale" />
-                  </span>
-                  <h2 className="min-w-0 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
-                    Cotizaciones recibidas
-                  </h2>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
-                    {sortedQuotes.length}
-                  </span>
-                </div>
-
-                {awardedQuote ? (
-                  <div className="mt-4 flex items-start gap-3 rounded-[12px] border border-emerald-200 bg-emerald-100 px-4 py-3">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
-                      <svg aria-hidden="true" className="h-3 w-3" fill="none" viewBox="0 0 24 24">
-                        <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
-                      </svg>
-                    </span>
-                    <p className="text-[13px] leading-6 text-emerald-800">
-                      La compra ya fue asignada a{' '}
-                      <span className="font-semibold">{awardedQuote.supplierCompany?.name ?? 'un proveedor'}</span> por{' '}
-                      <span className="font-semibold">{formatCurrency(awardedQuote.amount, awardedQuote.currency)}</span>.
-                    </p>
-                  </div>
-                ) : sortedQuotes.length ? (
-                  <p className="mt-3 text-[13px] leading-6 text-slate-500">
-                    Compará las propuestas y asignale la compra al proveedor que elijas. Al confirmar, el resto de las
-                    cotizaciones quedan rechazadas y la solicitud se cierra.
-                  </p>
-                ) : null}
-
-                {/* Ayuda de decisión: los ejes en lenguaje simple */}
-                {decisionHints.length > 0 ? (
-                  <div className="mt-4 rounded-[12px] border border-[#dbe6ff] bg-[#eef3ff]/60 px-4 py-3">
-                    <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#1847ff]">
-                      <DetailIcon type="scale" />
-                      Para ayudarte a decidir
-                    </p>
-                    <ul className="mt-1.5 space-y-1">
-                      {decisionHints.map((hint) => (
-                        <li key={hint} className="text-[12px] leading-5 text-slate-700">
-                          {hint}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-
-                {/* Comparación lado a lado (manzanas con manzanas) */}
-                {comparableQuotes.length >= 2 ? (
-                  <QuoteComparison
-                    quotes={comparableQuotes}
-                    items={request?.items ?? []}
-                    bestPriceId={bestPrice?.id ?? null}
-                    fastestId={fastest?.id ?? null}
-                    awardedQuoteId={request?.awardedQuoteId ?? null}
-                    canAward={canAward}
-                    awardingQuoteId={awardingQuoteId}
-                    onAward={handleAward}
-                  />
-                ) : null}
-
-                <div className="mt-4 space-y-3">
-                  {sortedQuotes.length ? (
-                    sortedQuotes.map((quote) => {
-                      const isAwarded = quote.id === request?.awardedQuoteId;
-                      const isRejected = quote.status === 'REJECTED';
-                      const isAwardable = canAward && quote.status === 'SUBMITTED';
-                      const awarding = awardingQuoteId === quote.id;
-                      const supplierName = quote.supplierCompany?.name ?? 'Proveedor';
-                      const supplierCity = [quote.supplierCompany?.city, quote.supplierCompany?.country]
-                        .filter(Boolean)
-                        .join(', ');
-
-                      return (
-                        <article
-                          key={quote.id}
-                          className={`rounded-[12px] border p-4 transition ${
-                            isAwarded
-                              ? 'border-emerald-300 bg-emerald-50/60'
-                              : isRejected
-                                ? 'border-slate-300 bg-slate-50/70'
-                                : 'border-slate-300 bg-white'
-                          }`}
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="flex min-w-0 gap-3">
-                              <span
-                                className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px] text-sm font-bold ${
-                                  isAwarded ? 'bg-emerald-100 text-emerald-700' : 'bg-[#eef3ff] text-[#1847ff]'
-                                }`}
-                              >
-                                {supplierName.slice(0, 2).toUpperCase()}
-                              </span>
-                              <div className="min-w-0">
-                                <p className="truncate text-[15px] font-semibold text-slate-950">{supplierName}</p>
-                                <p className="mt-0.5 truncate text-[12px] text-slate-500">
-                                  {supplierCity || 'Ubicación no informada'}
-                                  {quote.supplierCompany?.supplierProfile?.supplierRole
-                                    ? ` · ${SUPPLIER_ROLE_LABELS[quote.supplierCompany.supplierProfile.supplierRole]}`
-                                    : ''}
-                                </p>
-                                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                  {isAwarded ? (
-                                    <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
-                                      Compra asignada
-                                    </span>
-                                  ) : isRejected ? (
-                                    <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[10px] font-semibold text-slate-600">
-                                      No seleccionada
-                                    </span>
-                                  ) : quote.status === 'SUBMITTED' ? (
-                                    <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
-                                      En evaluación
-                                    </span>
-                                  ) : (
-                                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">
-                                      Borrador
-                                    </span>
-                                  )}
-                                  {!isRejected && bestPrice?.id === quote.id ? (
-                                    <span className="rounded-full bg-[#eef3ff] px-2.5 py-1 text-[10px] font-semibold text-[#1847ff]">
-                                      Mejor precio
-                                    </span>
-                                  ) : null}
-                                  {!isRejected && fastest?.id === quote.id ? (
-                                    <span className="rounded-full bg-teal-100 px-2.5 py-1 text-[10px] font-semibold text-teal-700">
-                                      Entrega más rápida
-                                    </span>
-                                  ) : null}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="text-right">
-                              <p className="text-[20px] font-semibold tracking-[-0.02em] text-slate-950">
-                                {formatCurrency(quote.amount, quote.currency)}
-                              </p>
-                              <p className="mt-0.5 text-[11px] text-slate-600">
-                                Enviada el {formatDate(quote.createdAt)}
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            <div className="rounded-[10px] bg-[#eef1f7] px-3 py-2.5">
-                              <p className="text-[11px] font-semibold text-slate-600">Plazo de entrega</p>
-                              <p className="mt-1 text-[13px] font-semibold text-slate-900">
-                                {typeof quote.leadTimeDays === 'number' ? `${quote.leadTimeDays} días` : 'A convenir'}
-                              </p>
-                            </div>
-                            <div className="rounded-[10px] bg-[#eef1f7] px-3 py-2.5">
-                              <p className="text-[11px] font-semibold text-slate-600">Condiciones de pago</p>
-                              <p className="mt-1 text-[13px] font-semibold text-slate-900">
-                                {quote.paymentTerms || 'A convenir'}
-                              </p>
-                            </div>
-                          </div>
-
-                          {quote.items && quote.items.length > 0 && (request?.items?.length ?? 0) > 1 ? (
-                            <div className="mt-3 rounded-[10px] border border-slate-200 bg-slate-50/70 px-3 py-2.5">
-                              <p className="text-[11px] font-semibold text-slate-600">Precio por producto</p>
-                              <ul className="mt-1.5 space-y-1">
-                                {quote.items.map((line) => {
-                                  const reqItem = request?.items?.find((item) => item.id === line.requestItemId);
-                                  const qty = reqItem?.quantity ?? null;
-                                  const unavailable = line.availability === 'UNAVAILABLE';
-                                  const alternative = line.availability === 'ALTERNATIVE';
-                                  const subtotal =
-                                    !unavailable && qty != null && line.unitPrice != null
-                                      ? line.unitPrice * qty
-                                      : null;
-                                  return (
-                                    <li key={line.id} className="flex items-start justify-between gap-3 text-[12px]">
-                                      <span className="min-w-0">
-                                        <span className="flex flex-wrap items-center gap-1.5">
-                                          <span className="truncate text-slate-700">
-                                            {reqItem?.productName ?? 'Producto'}
-                                            {qty ? ` · ${qty} ${reqItem?.unit ?? 'u.'}` : ''}
-                                          </span>
-                                          {unavailable ? (
-                                            <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[9px] font-semibold text-rose-600">
-                                              No disp.
-                                            </span>
-                                          ) : alternative ? (
-                                            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-600">
-                                              Alternativa
-                                            </span>
-                                          ) : null}
-                                        </span>
-                                        {line.note ? (
-                                          <span className="mt-0.5 block text-[11px] leading-5 text-slate-500">{line.note}</span>
-                                        ) : null}
-                                      </span>
-                                      <span className="shrink-0 text-right font-semibold text-slate-900">
-                                        {unavailable || line.unitPrice == null
-                                          ? '—'
-                                          : `${formatCurrency(line.unitPrice, quote.currency)}/u${
-                                              subtotal != null ? ` · ${formatCurrency(subtotal, quote.currency)}` : ''
-                                            }`}
-                                      </span>
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            </div>
-                          ) : null}
-
-                          {quote.technicalComment ? (
-                            <p className="mt-3 whitespace-pre-wrap rounded-[10px] bg-[#eef1f7] px-3 py-2.5 text-[12px] leading-6 text-slate-600">
-                              {quote.technicalComment}
-                            </p>
-                          ) : null}
-
-                          <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
-                            <Link
-                              className="inline-flex h-10 items-center justify-center rounded-[12px] border border-slate-300 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50"
-                              href={`/dashboard/comprador/cotizaciones/${quote.id}`}
-                            >
-                              Ver cotización
-                            </Link>
-                            {isAwardable ? (
-                              <button
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#1847ff] px-4 text-[13px] font-semibold text-white shadow-[0_12px_26px_rgba(24,71,255,0.22)] transition hover:bg-[#0f3ff5] disabled:cursor-not-allowed disabled:opacity-60"
-                                disabled={Boolean(awardingQuoteId)}
-                                onClick={() => void handleAward(quote.id)}
-                                type="button"
-                              >
-                                {awarding ? (
-                                  'Asignando...'
-                                ) : (
-                                  <>
-                                    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-                                      <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                                    </svg>
-                                    Asignar compra
-                                  </>
-                                )}
-                              </button>
-                            ) : null}
-                          </div>
-                        </article>
-                      );
-                    })
-                  ) : (
-                    <div className="rounded-[12px] border border-dashed border-slate-300 bg-[#eef1f7] px-4 py-5 text-sm text-slate-500">
-                      Todavía no recibiste cotizaciones para esta solicitud.
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              {awardedQuote ? (
-                <section className="border-t border-slate-300 pt-6">
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef3ff] text-[#1847ff]">
-                      <DetailIcon type="file" />
-                    </span>
-                    <h2 className="min-w-0 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">Orden y cumplimiento</h2>
-                  </div>
-
-                  {request?.status === 'AWARDED' || request?.status === 'NEGOTIATING' ? (
-                    <div className="mt-4 rounded-[12px] border border-slate-300 bg-white p-4">
-                      <p className="text-[13px] leading-6 text-slate-600">
-                        Ya adjudicaste la compra a{' '}
-                        <span className="font-semibold text-slate-900">{awardedQuote.supplierCompany?.name ?? 'el proveedor'}</span>. Emití la orden de compra para que el proveedor pueda empezar a preparar el pedido y puedas seguir su cumplimiento.
-                      </p>
-                      <div className="mt-4 flex flex-wrap items-center gap-2">
-                        {request?.status === 'AWARDED' ? (
-                          <button
-                            className="inline-flex h-10 items-center justify-center rounded-[12px] border border-slate-300 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                            disabled={Boolean(progressingAction)}
-                            onClick={() => void handleProgress('START_NEGOTIATION')}
-                            type="button"
-                          >
-                            {progressingAction === 'START_NEGOTIATION' ? 'Iniciando...' : 'Iniciar negociación'}
-                          </button>
                         ) : null}
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                          {(request?.items?.length ?? 0) === 1 ? (
+                            <div className="rounded-[10px] bg-[#f4f6fb] px-3 py-2.5">
+                              <p className="text-[12px] font-semibold text-slate-500">Cantidad</p>
+                              <p className="mt-0.5 text-[14px] font-bold text-slate-950">
+                                {item.quantity ? `${item.quantity.toLocaleString('es-AR')} ${item.unit ?? 'u.'}` : 'A definir'}
+                              </p>
+                            </div>
+                          ) : null}
+                          {specRows.map((row, rowIndex) => (
+                            <div key={`${row.label}-${rowIndex}`} className="rounded-[10px] bg-[#f4f6fb] px-3 py-2.5">
+                              <p className="text-[12px] font-semibold text-slate-500">{row.label}</p>
+                              <p className="mt-0.5 text-[14px] font-bold text-slate-950">{row.value || '-'}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4">
+                  {detailItems.map((item) => (
+                    <div key={`${item.label}-${item.value}`} className="rounded-[10px] bg-[#f4f6fb] px-3 py-2.5">
+                      <p className="text-[12px] font-semibold text-slate-500">{item.label}</p>
+                      <p className="mt-0.5 text-[14px] font-bold text-slate-950">{item.value || '-'}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* ==================== PROPUESTAS ==================== */}
+            <section className="overflow-hidden rounded-[16px] border border-slate-300 bg-white">
+              <div className="flex items-center justify-between gap-3 px-4 pb-3 pt-4 sm:px-5">
+                <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">
+                  Propuestas recibidas <span className="ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-[12px] font-bold text-slate-600">{sortedQuotes.length}</span>
+                </h2>
+                {sortedQuotes.length > 0 ? (
+                  <Link className="text-[13px] font-semibold text-[#1f5bff]" href={compareHref}>
+                    {sortedQuotes.length > 1 ? (
+                      <>
+                        Comparar<span className="hidden sm:inline"> lado a lado</span>
+                      </>
+                    ) : (
+                      'Ver propuesta'
+                    )}
+                  </Link>
+                ) : null}
+              </div>
+              {sortedQuotes.length === 0 ? (
+                <p className="border-t border-slate-200 px-4 py-5 text-[13.5px] text-slate-500 sm:px-5">
+                  Todavía no recibiste propuestas. Te avisamos apenas un proveedor responda.
+                </p>
+              ) : (
+                <ul>
+                  {sortedQuotes.map((quote) => {
+                    const isAwarded = quote.id === request?.awardedQuoteId;
+                    const isRejected = quote.status === 'REJECTED';
+                    return (
+                      <li key={quote.id} className={`border-t border-slate-200 ${isRejected ? 'opacity-60' : ''}`}>
+                        <Link
+                          className="grid grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1 px-4 py-3 transition hover:bg-[#f7f9ff] sm:grid-cols-[auto_minmax(0,1.4fr)_1fr_0.7fr_auto] sm:px-5"
+                          href={`/dashboard/comprador/cotizaciones/${quote.id}`}
+                        >
+                          <SupplierAvatar name={quote.supplierCompany?.name} size={40} />
+                          <div className="min-w-0">
+                            <p className="truncate text-[14px] font-bold">{quote.supplierCompany?.name ?? 'Proveedor'}</p>
+                            <p className="mt-0.5 flex flex-wrap gap-1">
+                              {isAwarded ? (
+                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Compra asignada</span>
+                              ) : isRejected ? (
+                                <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] font-bold text-slate-600">No seleccionada</span>
+                              ) : (
+                                <>
+                                  {comparableQuotes.length > 1 && bestPrice?.id === quote.id ? (
+                                    <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Mejor precio</span>
+                                  ) : null}
+                                  {fastest?.id === quote.id ? (
+                                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">Más rápida</span>
+                                  ) : null}
+                                  {(() => {
+                                    const coverage = coverageOf(quote, request?.items ?? []);
+                                    if (coverage.kind === 'partial') {
+                                      return (
+                                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                                          Cotiza {coverage.covered} de {coverage.total} productos
+                                        </span>
+                                      );
+                                    }
+                                    if (coverage.kind === 'alternative') {
+                                      return <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-bold text-rose-700">Ofrece alternativa</span>;
+                                    }
+                                    return null;
+                                  })()}
+                                </>
+                              )}
+                            </p>
+                          </div>
+                          <p className="text-right text-[15px] font-extrabold tabular-nums sm:text-left">{formatCurrency(quote.amount, quote.currency)}</p>
+                          <p className="col-span-2 col-start-2 text-[12.5px] text-slate-500 sm:col-span-1 sm:col-start-auto sm:text-[13.5px] sm:font-semibold sm:text-slate-800">
+                            {typeof quote.leadTimeDays === 'number' ? `${quote.leadTimeDays} días` : 'Plazo a convenir'}
+                            <span className="sm:hidden">{quote.paymentTerms ? ` · ${quote.paymentTerms}` : ''}</span>
+                          </p>
+                          <svg aria-hidden="true" className="hidden h-4 w-4 text-slate-400 sm:block" fill="none" viewBox="0 0 24 24">
+                            <path d="M9 6l6 6-6 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                          </svg>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+
+            {/* ==================== ORDEN Y CUMPLIMIENTO ==================== */}
+            {awardedQuote ? (
+              <section id="orden" className="scroll-mt-24 rounded-[16px] border border-slate-300 bg-white p-4 sm:p-5">
+                <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">Orden y cumplimiento</h2>
+
+                {request?.status === 'AWARDED' || request?.status === 'NEGOTIATING' ? (
+                  <div className="mt-3">
+                    <p className="text-[13.5px] leading-6 text-slate-600">
+                      Ya asignaste la compra a <span className="font-semibold text-slate-900">{awardedQuote.supplierCompany?.name ?? 'el proveedor'}</span>. Emití la orden de compra para que el proveedor pueda empezar a preparar el pedido y puedas seguir su cumplimiento.
+                    </p>
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      {request?.status === 'AWARDED' ? (
                         <button
-                          className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-[#1847ff] px-4 text-[13px] font-semibold text-white shadow-[0_12px_26px_rgba(24,71,255,0.22)] transition hover:bg-[#0f3ff5] disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex h-10 items-center justify-center rounded-[11px] border border-slate-300 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
                           disabled={Boolean(progressingAction)}
-                          onClick={() => void handleProgress('ISSUE_ORDER')}
+                          onClick={() => void handleProgress('START_NEGOTIATION')}
                           type="button"
                         >
-                          {progressingAction === 'ISSUE_ORDER' ? 'Emitiendo...' : 'Emitir orden de compra'}
+                          {progressingAction === 'START_NEGOTIATION' ? 'Iniciando...' : 'Iniciar negociación'}
+                        </button>
+                      ) : null}
+                      <button
+                        className="inline-flex h-10 items-center justify-center gap-2 rounded-[11px] bg-[#1f5bff] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(31,91,255,0.22)] transition hover:bg-[#1747d6] disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={Boolean(progressingAction)}
+                        onClick={() => void handleProgress('ISSUE_ORDER')}
+                        type="button"
+                      >
+                        {progressingAction === 'ISSUE_ORDER' ? 'Emitiendo...' : 'Emitir orden de compra'}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {request?.status === 'ORDER_ISSUED' && request?.order ? (
+                  <div className="mt-3 space-y-4">
+                    <div className="rounded-[12px] border border-slate-200 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-[13px] font-bold text-slate-900">Orden {request.order.orderNumber}</p>
+                          <p className="mt-0.5 text-[13px] text-slate-600">Seguimiento del cumplimiento a cargo del proveedor.</p>
+                        </div>
+                        <span className={`inline-flex rounded-full px-3 py-1 text-[12px] font-semibold ${getFulfillmentTone(request.order.fulfillmentStatus)}`}>
+                          {getFulfillmentLabel(request.order.fulfillmentStatus)}
+                        </span>
+                      </div>
+                      <div className="mt-4 flex items-end gap-1.5">
+                        {FULFILLMENT_STEPS.map((step, index) => {
+                          const done = index <= fulfillmentIndex;
+                          return (
+                            <div key={step} className="flex flex-1 flex-col items-center gap-1.5">
+                              <span className={`h-1.5 w-full rounded-full ${done ? 'bg-[#1f5bff]' : 'bg-slate-200'}`} />
+                              <span className={`text-center text-[11px] font-semibold leading-tight ${done ? 'text-[#1f5bff]' : 'text-slate-500'}`}>
+                                {getFulfillmentLabel(step)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {request.order.fulfillmentStatus === 'DELIVERED' ? (
+                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-emerald-200 bg-emerald-50 p-4">
+                        <p className="text-[13.5px] leading-6 text-emerald-800">
+                          El proveedor marcó el pedido como <span className="font-semibold">entregado</span>. Confirmá la recepción para cerrar la operación.
+                        </p>
+                        <button
+                          className="inline-flex h-10 items-center justify-center rounded-[11px] bg-emerald-600 px-4 text-[13px] font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={Boolean(progressingAction)}
+                          onClick={() => void handleProgress('CONFIRM_RECEIPT')}
+                          type="button"
+                        >
+                          {progressingAction === 'CONFIRM_RECEIPT' ? 'Confirmando...' : 'Confirmar recepción'}
                         </button>
                       </div>
-                    </div>
-                  ) : null}
+                    ) : null}
 
-                  {request?.status === 'ORDER_ISSUED' && request?.order ? (
-                    <div className="mt-4 space-y-4">
-                      <div className="rounded-[12px] border border-slate-300 bg-white p-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div>
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">Orden {request.order.orderNumber}</p>
-                            <p className="mt-1 text-[13px] text-slate-600">Seguimiento del cumplimiento a cargo del proveedor.</p>
-                          </div>
-                          <span className={`inline-flex rounded-full px-3 py-1 text-[12px] font-semibold ${getFulfillmentTone(request.order.fulfillmentStatus)}`}>
-                            {getFulfillmentLabel(request.order.fulfillmentStatus)}
-                          </span>
-                        </div>
-                        <div className="mt-4 flex items-end gap-1.5">
-                          {FULFILLMENT_STEPS.map((step, index) => {
-                            const done = index <= fulfillmentIndex;
-                            return (
-                              <div key={step} className="flex flex-1 flex-col items-center gap-1.5">
-                                <span className={`h-1.5 w-full rounded-full ${done ? 'bg-[#1847ff]' : 'bg-slate-200'}`} />
-                                <span className={`text-center text-[10px] font-semibold leading-tight ${done ? 'text-[#1847ff]' : 'text-slate-600'}`}>
-                                  {getFulfillmentLabel(step)}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {request.order.fulfillmentStatus === 'DELIVERED' ? (
-                        <div className="rounded-[12px] border border-emerald-200 bg-emerald-100 p-4">
-                          <div className="flex flex-wrap items-center justify-between gap-3">
-                            <p className="text-[13px] leading-6 text-emerald-800">
-                              El proveedor marcó el pedido como <span className="font-semibold">entregado</span>. Confirmá la recepción para cerrar la operación.
-                            </p>
-                            <button
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-[12px] bg-emerald-600 px-4 text-[13px] font-semibold text-white shadow-[0_12px_26px_rgba(5,150,105,0.22)] transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                              disabled={Boolean(progressingAction)}
-                              onClick={() => void handleProgress('CONFIRM_RECEIPT')}
-                              type="button"
-                            >
-                              {progressingAction === 'CONFIRM_RECEIPT' ? 'Confirmando...' : 'Confirmar recepción'}
-                            </button>
-                          </div>
-                        </div>
-                      ) : null}
-
-                      <form className="rounded-[12px] border border-slate-300 bg-white p-4" onSubmit={handleSaveOrder}>
-                        <p className="text-[14px] font-semibold text-slate-900">Datos de la orden</p>
-                        <p className="mt-1 text-[12px] text-slate-500">Información operativa para tu registro y el del proveedor.</p>
-                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <label className="block">
-                            <span className="text-[11px] font-semibold text-slate-500">Número de orden</span>
-                            <input
-                              className="mt-1 w-full rounded-[12px] border border-slate-300 px-3 py-2 text-[13px] text-slate-900 outline-none transition focus:border-[#1847ff]"
-                              onChange={(event) => setOrderForm((form) => ({ ...form, orderNumber: event.target.value }))}
-                              value={orderForm.orderNumber}
-                            />
-                          </label>
-                          <label className="block">
-                            <span className="text-[11px] font-semibold text-slate-500">Fecha prometida</span>
-                            <input
-                              className="mt-1 w-full rounded-[12px] border border-slate-300 px-3 py-2 text-[13px] text-slate-900 outline-none transition focus:border-[#1847ff]"
-                              onChange={(event) => setOrderForm((form) => ({ ...form, promisedDate: event.target.value }))}
-                              type="date"
-                              value={orderForm.promisedDate}
-                            />
-                          </label>
-                        </div>
-                        <label className="mt-3 block">
-                          <span className="text-[11px] font-semibold text-slate-500">Notas</span>
-                          <textarea
-                            className="mt-1 w-full rounded-[12px] border border-slate-300 px-3 py-2 text-[13px] text-slate-900 outline-none transition focus:border-[#1847ff]"
-                            onChange={(event) => setOrderForm((form) => ({ ...form, notes: event.target.value }))}
-                            rows={2}
-                            value={orderForm.notes}
+                    <form className="rounded-[12px] border border-slate-200 p-4" onSubmit={handleSaveOrder}>
+                      <p className="text-[14px] font-semibold text-slate-900">Datos de la orden</p>
+                      <p className="mt-1 text-[12px] text-slate-500">Información operativa para tu registro y el del proveedor.</p>
+                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <label className="block">
+                          <span className="text-[12px] font-semibold text-slate-500">Número de orden</span>
+                          <input
+                            className="mt-1 w-full rounded-[10px] border border-slate-300 px-3 py-2 text-[13px] text-slate-900 outline-none transition focus:border-[#1f5bff]"
+                            onChange={(event) => setOrderForm((form) => ({ ...form, orderNumber: event.target.value }))}
+                            value={orderForm.orderNumber}
                           />
                         </label>
-                        <div className="mt-3 flex justify-end">
-                          <button
-                            className="inline-flex h-10 items-center justify-center rounded-[12px] border border-slate-300 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                            disabled={savingOrder}
-                            type="submit"
-                          >
-                            {savingOrder ? 'Guardando...' : 'Guardar datos de la orden'}
-                          </button>
-                        </div>
-                      </form>
-                    </div>
-                  ) : null}
-
-                  {request?.status === 'COMPLETED' ? (
-                    <div className="mt-4 rounded-[12px] border border-emerald-200 bg-emerald-100 p-4">
-                      <div className="flex items-start gap-3">
-                        <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white">
-                          <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
-                            <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
-                          </svg>
-                        </span>
-                        <div>
-                          <p className="text-[14px] font-semibold text-emerald-900">Operación completada</p>
-                          <p className="mt-1 text-[13px] leading-6 text-emerald-800">
-                            Confirmaste la recepción del pedido{request?.order?.orderNumber ? ` (${request.order.orderNumber})` : ''}. El ciclo de esta solicitud está cerrado.
-                          </p>
-                        </div>
+                        <label className="block">
+                          <span className="text-[12px] font-semibold text-slate-500">Fecha prometida</span>
+                          <input
+                            className="mt-1 w-full rounded-[10px] border border-slate-300 px-3 py-2 text-[13px] text-slate-900 outline-none transition focus:border-[#1f5bff]"
+                            onChange={(event) => setOrderForm((form) => ({ ...form, promisedDate: event.target.value }))}
+                            type="date"
+                            value={orderForm.promisedDate}
+                          />
+                        </label>
                       </div>
-                    </div>
-                  ) : null}
-                </section>
-              ) : null}
-
-              <section className="border-t border-slate-300 pt-6">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef3ff] text-[#1847ff]">
-                    <DetailIcon type="pin" />
-                  </span>
-                  <h2 className="min-w-0 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">Información de entrega y contacto</h2>
-                </div>
-                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                  {deliveryItems.length ? (
-                    deliveryItems.map((item) => (
-                      <article key={`${item.label}-${item.value}`} className="rounded-[12px] border border-slate-300 bg-white px-4 py-4">
-                        <div className="flex items-center gap-2 text-slate-600">
-                          <DetailIcon type={getDetailIcon(item.label)} />
-                          <p className="text-[11px] font-semibold text-slate-600">{item.label}</p>
-                        </div>
-                        <p className="mt-3 text-[15px] font-semibold leading-6 text-slate-950">{item.value || '-'}</p>
-                      </article>
-                    ))
-                  ) : (
-                    <article className="rounded-[12px] border border-dashed border-slate-300 bg-[#eef1f7] px-4 py-5 text-sm text-slate-500 md:col-span-2 xl:col-span-3">
-                      Aún no hay información de entrega cargada en esta solicitud.
-                    </article>
-                  )}
-                </div>
-              </section>
-
-              <section className="border-t border-slate-300 pt-6">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[#eef3ff] text-[#1847ff]">
-                    <DetailIcon type="file" />
-                  </span>
-                  <h2 className="min-w-0 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">Especificaciones</h2>
-                </div>
-                <div className="mt-4 rounded-[12px] border border-slate-300 bg-white p-4">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] bg-rose-100 text-[11px] font-bold text-rose-500">
-                        PDF
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-[14px] font-semibold text-slate-950">Hoja de especificaciones</p>
-                        <p className="mt-1 text-[12px] text-slate-500">Se genera con los productos y datos de esta solicitud.</p>
+                      <label className="mt-3 block">
+                        <span className="text-[12px] font-semibold text-slate-500">Notas</span>
+                        <textarea
+                          className="mt-1 w-full rounded-[10px] border border-slate-300 px-3 py-2 text-[13px] text-slate-900 outline-none transition focus:border-[#1f5bff]"
+                          onChange={(event) => setOrderForm((form) => ({ ...form, notes: event.target.value }))}
+                          rows={2}
+                          value={orderForm.notes}
+                        />
+                      </label>
+                      <div className="mt-3 flex justify-end">
+                        <button
+                          className="inline-flex h-10 items-center justify-center rounded-[11px] border border-slate-300 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={savingOrder}
+                          type="submit"
+                        >
+                          {savingOrder ? 'Guardando...' : 'Guardar datos de la orden'}
+                        </button>
                       </div>
-                    </div>
-                    <button
-                      aria-label="Descargar especificaciones"
-                      className="inline-flex h-10 items-center gap-2 rounded-[12px] border border-slate-300 px-3 text-[13px] font-semibold text-slate-600 transition hover:bg-slate-50"
-                      onClick={handleDownloadSpecs}
-                      type="button"
-                    >
-                      <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-                        <path d="M12 3v12M7 10l5 5 5-5M5 21h14" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                      </svg>
-                      Descargar
-                    </button>
+                    </form>
                   </div>
-                </div>
-              </section>
+                ) : null}
 
-              <div className="rounded-[12px] bg-[#dbe6ff] px-4 py-4">
-                <div className="flex items-start gap-3">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-white text-[#1847ff] shadow-sm">
-                    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <path d="M12 22s8-4 8-10V6l-8-3-8 3v6c0 6 8 10 8 10z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                      <path d="M9 12l2 2 4-4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                    </svg>
-                  </span>
-                  <div>
-                    <p className="text-[13px] font-semibold text-[#243252]">Tu información está protegida</p>
-                    <p className="mt-1 text-[12px] leading-5 text-[#334155]">Solo los proveedores seleccionados pueden ver los detalles completos de esta solicitud.</p>
-                  </div>
+                {request?.status === 'COMPLETED' ? (
+                  <p className="mt-3 rounded-[12px] border border-emerald-200 bg-emerald-50 p-4 text-[13.5px] leading-6 text-emerald-800">
+                    Confirmaste la recepción del pedido{request?.order?.orderNumber ? ` (${request.order.orderNumber})` : ''}. El ciclo de esta solicitud está cerrado.
+                  </p>
+                ) : null}
+              </section>
+            ) : null}
+
+            {/* ==================== ENTREGA ==================== */}
+            <section className="rounded-[16px] border border-slate-300 bg-white p-4 sm:p-5">
+              <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">Entrega y contacto</h2>
+              {deliveryItems.length ? (
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {deliveryItems.map((item) => (
+                    <div key={`${item.label}-${item.value}`} className="rounded-[10px] bg-[#f4f6fb] px-3 py-2.5">
+                      <p className="text-[12px] font-semibold text-slate-500">{item.label}</p>
+                      <p className="mt-0.5 text-[14px] font-bold text-slate-950">{item.value || '-'}</p>
+                    </div>
+                  ))}
                 </div>
-              </div>
-            </div>
-          </section>
+              ) : (
+                <p className="mt-3 text-[13.5px] text-slate-500">Aún no hay información de entrega cargada en esta solicitud.</p>
+              )}
+            </section>
+          </div>
 
           <aside className="space-y-5">
-            <section data-tour="request-suppliers" className="rounded-[12px] border border-slate-300 bg-white p-4 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-[16px] font-semibold tracking-[-0.02em] text-slate-950">Proveedores seleccionados</h2>
-                {supplierCards.length ? (
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-                    {supplierCards.length}
-                  </span>
-                ) : null}
+            {/* ==================== PROVEEDORES ==================== */}
+            <section data-tour="request-suppliers" className="overflow-hidden rounded-[16px] border border-slate-300 bg-white">
+              <div className="flex items-center justify-between gap-3 px-4 pb-3 pt-4">
+                <h2 className="text-[16px] font-extrabold tracking-[-0.02em]">Proveedores invitados</h2>
+                {isAwardedFlow || request?.status === 'COMPLETED' || request?.status === 'CANCELLED' ? null : (
+                  <button
+                    className="text-[13px] font-semibold text-[#1f5bff]"
+                    onClick={() => router.push(`/dashboard/comprador/solicitudes/nueva?category=${encodeURIComponent(request?.category ?? '')}&step=4`)}
+                    type="button"
+                  >
+                    + Sumar
+                  </button>
+                )}
               </div>
-
-              <div className="mt-3 space-y-2">
-                {supplierCards.length ? (
-                  supplierCards.map((provider) => (
-                    <article key={provider.id} className="flex items-center justify-between gap-3 rounded-[10px] border border-slate-300 bg-white px-3 py-2.5">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[#eef3ff] text-sm font-bold text-[#1847ff]">
-                          {provider.name.slice(0, 1).toUpperCase()}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-[13px] font-semibold text-slate-950">{provider.name}</p>
-                          <p className="truncate text-[11px] text-slate-500">{provider.city || provider.tag}</p>
+              {supplierCards.length ? (
+                <ul>
+                  {supplierCards.map((provider) => {
+                    const quote = sortedQuotes.find((item) => item.supplierCompany?.name === provider.name);
+                    return (
+                      <li key={provider.id} className="flex items-center gap-3 border-t border-slate-200 px-4 py-2.5">
+                        <SupplierAvatar name={provider.name} size={36} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[13.5px] font-bold text-slate-950">{provider.name}</p>
+                          <p className="truncate text-[12px] text-slate-500">
+                            {quote ? `Cotizó el ${formatDate(quote.createdAt)}` : 'Todavía no respondió'}
+                          </p>
                         </div>
-                      </div>
-                      {provider.quoted ? (
-                        <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">Cotizó</span>
-                      ) : (
-                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-500">Invitado</span>
-                      )}
-                    </article>
-                  ))
-                ) : (
-                  <div className="rounded-[10px] border border-dashed border-slate-300 bg-[#eef1f7] px-3 py-4 text-[13px] text-slate-500">
-                    Todavía no hay proveedores vinculados a esta solicitud.
-                  </div>
-                )}
-
-                <button
-                  className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-[#eef1f7] px-4 py-2.5 text-[12px] font-semibold text-[#1847ff] transition hover:bg-[#f4f6fb]"
-                  onClick={() => router.push(`/dashboard/comprador/solicitudes/nueva?category=${encodeURIComponent(request?.category ?? '')}&step=4`)}
-                  type="button"
-                >
-                  <span className="text-base leading-none">+</span>
-                  Agregar más proveedores
-                </button>
-              </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                            provider.quoted ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          {provider.quoted ? 'Cotizó' : 'Invitado'}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="border-t border-slate-200 px-4 py-4 text-[13px] text-slate-500">Todavía no hay proveedores vinculados a esta solicitud.</p>
+              )}
             </section>
 
-            <section data-tour="request-history" className="rounded-[12px] border border-slate-300 bg-white p-4 shadow-[0_12px_36px_rgba(15,23,42,0.04)]">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-[16px] font-semibold tracking-[-0.02em] text-slate-950">Historial</h2>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-500">
-                  {requestTimeline.length} evento{requestTimeline.length === 1 ? '' : 's'}
-                </span>
-              </div>
-
-              <div className="mt-3">
-                {requestTimeline.length ? (
-                  <div className="relative space-y-2.5 pl-5 before:absolute before:left-[7px] before:top-2 before:h-[calc(100%-16px)] before:w-px before:bg-slate-200">
-                    {requestTimeline.map((event) => (
-                      <div key={event.id} className="relative">
-                        <span className="absolute -left-5 top-2.5 h-[8px] w-[8px] rounded-full bg-[#1847ff] ring-4 ring-white" />
-                        <article className="rounded-[12px] border border-slate-300 bg-white px-3 py-2.5">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <h3 className="text-[13px] font-semibold text-slate-950">{event.title}</h3>
-                              <p className="mt-0.5 text-[12px] leading-5 text-slate-500">{event.detail ?? 'La solicitud registró un cambio operativo.'}</p>
-                              <p className="mt-1.5 text-[11px] font-semibold text-slate-500">{event.actorCompanyName ?? request?.buyerCompany?.name ?? 'Comprador'}</p>
-                            </div>
-                            <span className="shrink-0 text-right text-[10px] font-medium uppercase tracking-[0.1em] text-slate-600">
-                              {formatDateTime(event.createdAt)}
-                            </span>
-                          </div>
-                        </article>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-[12px] border border-dashed border-slate-300 bg-[#eef1f7] px-3 py-4 text-[13px] text-slate-500">
-                    Todavía no hay eventos registrados para esta solicitud.
-                  </div>
-                )}
-              </div>
+            {/* ==================== HISTORIAL ==================== */}
+            <section data-tour="request-history" className="rounded-[16px] border border-slate-300 bg-white p-4">
+              <h2 className="text-[16px] font-extrabold tracking-[-0.02em]">Historial</h2>
+              {requestTimeline.length ? (
+                <ol className="relative mt-3 space-y-3.5 pl-5 before:absolute before:bottom-1.5 before:left-[5px] before:top-1.5 before:w-[2px] before:bg-slate-200">
+                  {requestTimeline.map((event) => (
+                    <li key={event.id} className="relative">
+                      <span className="absolute -left-5 top-1 h-3 w-3 rounded-full border-[2.5px] border-[#1f5bff] bg-white" />
+                      <p className="text-[13.5px] font-bold leading-5 text-slate-950">{event.title}</p>
+                      {event.detail ? <p className="text-[12.5px] leading-5 text-slate-500">{event.detail}</p> : null}
+                      <p className="mt-0.5 text-[11.5px] text-slate-400">{formatDateTime(event.createdAt)}</p>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="mt-3 text-[13px] text-slate-500">Todavía no hay eventos registrados para esta solicitud.</p>
+              )}
             </section>
-          </aside>
-        </div>
 
-        <div className="flex flex-col gap-3 rounded-[12px] border border-slate-300 bg-white px-4 py-4 shadow-[0_12px_30px_rgba(15,23,42,0.04)] sm:flex-row sm:items-center sm:justify-between">
-          <Link
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            href="/dashboard/comprador/solicitudes"
-          >
-            <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-              <path d="M15 18l-6-6 6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-            </svg>
-            Volver
-          </Link>
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-slate-300 bg-white px-4 text-sm font-semibold text-[#1847ff] transition hover:bg-[#f4f6fb]"
-              onClick={() => setMessage('Borrador guardado localmente.')}
-              type="button"
-            >
-              <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-                <path d="M6 4h12l2 2v14H4V4h2zm2 0v5h8V4" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+            <p className="flex items-start gap-2 px-1 text-[12.5px] leading-5 text-slate-500">
+              <svg aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[#1f5bff]" fill="none" viewBox="0 0 24 24">
+                <path d="M12 22s8-4 8-10V6l-8-3-8 3v6c0 6 8 10 8 10z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
               </svg>
-              Guardar borrador
-            </button>
-            {request && (request.status === 'DRAFT' || request.status === 'PUBLISHED') && (request.quotes?.length ?? 0) === 0 ? (
-              <button
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#1847ff] px-5 text-sm font-semibold text-white shadow-[0_18px_34px_rgba(24,71,255,0.24)] transition hover:bg-[#0f3ff5]"
-                onClick={() => router.push(`/dashboard/comprador/solicitudes/nueva?edit=${request.id}`)}
-                type="button"
-              >
-                <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-                  <path d="M12 20h9" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                  <path d="M16.5 3.5a2.1 2.1 0 113 3L7 19l-4 1 1-4 12.5-12.5z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                </svg>
-                Editar solicitud
-              </button>
-            ) : null}
-          </div>
+              Solo los proveedores que elegiste pueden ver los detalles completos de esta solicitud.
+            </p>
+          </aside>
         </div>
       </div>
     </main>

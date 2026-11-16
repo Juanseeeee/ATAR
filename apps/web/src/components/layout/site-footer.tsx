@@ -119,7 +119,7 @@ export default function SiteFooter() {
               </Link>
               <Link
                 className="inline-flex h-12 items-center justify-center rounded-xl border border-white/25 px-6 text-sm font-semibold text-white transition hover:bg-white/10"
-                href="/acceso"
+                href="/acceso?perfil=proveedor"
               >
                 Registrar mi empresa
               </Link>

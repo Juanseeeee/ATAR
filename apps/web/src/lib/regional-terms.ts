@@ -91,9 +91,13 @@ const CATEGORY_NAMES: Record<string, ByCountry> = {
     CO: 'Bultos',
   },
   'bolsas pp': {
-    default: 'Bolsas PP',
+    default: 'Costales',
+    MX: 'Costales',
+    ...group(CENTROAMERICA, 'Costales'),
+    ...group(['CO', 'EC'], 'Costales'),
+    ...group(['PE', 'VE'], 'Sacos de polipropileno'),
     ...group(RIO_DE_LA_PLATA, 'Bolsas de rafia'),
-    CL: 'Bolsas de rafia',
+    CL: 'Sacos de rafia',
   },
   'rollos y telas': {
     default: 'Rollos y Telas',
@@ -109,11 +113,11 @@ const CATEGORY_NAMES: Record<string, ByCountry> = {
     ...group(CENTROAMERICA, 'Hilo retorcido y Arpillas'),
   },
   'hilo multifilamento de pp': {
-    default: 'Hilo multifilamento de PP',
+    default: 'Hilo industrial (Multifilamento PP)',
     MX: 'Hilo para costura',
     ...group(CENTROAMERICA, 'Hilo para costura'),
     ...group(['CO', 'VE'], 'Hilaza de polipropileno'),
-    ...group(RIO_DE_LA_PLATA, 'Hilo de coser industrial'),
+    ...group(RIO_DE_LA_PLATA, 'Hilo industrial (Multifilamento PP)'),
     ...group(['CL', 'PE'], 'Hilo industrial'),
   },
   'cintas/cintillas': {
@@ -128,6 +132,9 @@ const CATEGORY_NAMES: Record<string, ByCountry> = {
     ...group(['CO', 'EC', 'VE'], 'Tintas flexográficas'),
     ...group(['AR', 'CL', 'PE', 'UY', 'PY', 'BO'], 'Tintas para flexografía'),
   },
+  fotopolimeros: {
+    default: 'Planchas para flexografía (clisé)',
+  },
 };
 
 /**
@@ -137,13 +144,14 @@ const CATEGORY_NAMES: Record<string, ByCountry> = {
 const CATEGORY_ALIASES: Record<string, string[]> = {
   'big bags': ['big bag', 'fibc', 'maxisaco', 'super saco', 'bolson', 'saco industrial', 'saco jumbo', 'tula industrial', 'saco gigante', 'jumbo'],
   sacos: ['costal', 'bulto', 'saco de rafia'],
-  'bolsas pp': ['bolsa de rafia', 'bolsa de polipropileno', 'costal'],
+  'bolsas pp': ['costal', 'saco', 'bolsa', 'bolsa pp', 'bolsa de rafia', 'bolsa de polipropileno', 'saco de rafia', 'bulto'],
   'rollos y telas': ['tela de rafia', 'tela de polipropileno', 'tejido de polipropileno', 'lona de polipropileno', 'arpilla', 'tela tubular'],
   'hilo retorcido y mallas': ['arpilla', 'malla'],
   'hilo multifilamento de pp': ['hilo de rafia', 'hilo para costura', 'hilaza', 'hilo de polipropileno', 'hilo de coser', 'hilado', 'hilo industrial', 'fibras'],
   'cintas/cintillas': ['cinta de rafia'],
   'cuerdas/cordones': ['rafia', 'cordel'],
   tintas: ['tinta para flexografia', 'tinta flexografica', 'tinta para costal', 'tinta para plastico', 'tinta para polipropileno'],
+  fotopolimeros: ['fotopolimero', 'clise', 'cliche', 'plancha de impresion', 'plancha flexografica', 'placa flexografica', 'polimero de impresion'],
 };
 
 export function localizeCategory(label: string, choice: RegionChoice | null): string {
@@ -177,11 +185,10 @@ const HOME_CARDS: Record<HomeCardKey, { default: CardText } & Partial<Record<Cou
     ...groupCard([...RIO_DE_LA_PLATA, 'CL'], { title: 'Tela de rafia', text: 'Lona de polipropileno y tela tubular' }),
   },
   sacos: {
-    default: { title: 'Sacos / Bolsas PP', text: 'Sacos, bolsas y envases de polipropileno' },
-    MX: { title: 'Costales', text: 'Costales y bolsas de rafia de 25 a 50 kg' },
-    ...groupCard(CENTROAMERICA, { title: 'Costales', text: 'Costales y bolsas de rafia de 25 a 50 kg' }),
-    CO: { title: 'Bultos / Bolsas PP', text: 'Bultos y bolsas de polipropileno' },
-    ...groupCard([...RIO_DE_LA_PLATA, 'CL'], { title: 'Sacos / Bolsas de rafia', text: 'Sacos y bolsas de rafia de 25 a 50 kg' }),
+    default: { title: 'Costales', text: 'Costales y bolsas de rafia de 25 a 50 kg' },
+    ...groupCard(['PE', 'VE'], { title: 'Sacos de polipropileno', text: 'Sacos tejidos de polipropileno de 25 a 50 kg' }),
+    ...groupCard(RIO_DE_LA_PLATA, { title: 'Bolsas de rafia', text: 'Bolsas de rafia de 25 a 50 kg' }),
+    CL: { title: 'Sacos de rafia', text: 'Sacos de rafia de 25 a 50 kg' },
   },
   bigbags: {
     default: { title: 'BigBags', text: 'Bolsones, jumbo y supersacos' },

@@ -87,7 +87,7 @@ const CATALOG: CategoryInput[] = [
     subtitle: 'Tejidas y laminadas',
     imageSrc: '/bolsaspp.png',
     imageClassName: 'scale-[1.05]',
-    searchKeywords: ['bolsas', 'packaging', 'polipropileno'],
+    searchKeywords: ['costales', 'bolsas', 'sacos', 'packaging', 'polipropileno'],
     fields: [
       { key: 'material', label: 'Material', type: 'choices', options: ['Virgen', 'Reciclado', 'Laminado', 'Mixto'], required: true },
       { key: 'gramaje', label: 'Gramaje', type: 'segmented', options: ['40 g', '55 g', '70 g', '90 g', '120 g'], required: true },
@@ -190,6 +190,24 @@ const CATALOG: CategoryInput[] = [
       { key: 'cantidad', label: 'Cantidad', type: 'quantity', required: true },
       { key: 'adjuntos', label: 'Adjuntar diseño', type: 'uploader', helper: 'Subí artes, layout o especificaciones.' },
       { key: 'observaciones', label: 'Observaciones', type: 'textarea', placeholder: 'Aclará viscosidad, anilox, secado o requerimientos especiales.', fullWidth: true },
+    ],
+  },
+  {
+    label: 'Fotopolímeros',
+    subtitle: 'Fotopolímeros digitales y analógicos',
+    imageSrc: '/polimero.png',
+    imageClassName: 'object-cover',
+    searchKeywords: ['fotopolimero', 'clise', 'cliche', 'plancha', 'flexografia', 'impresion'],
+    fields: [
+      { key: 'tecnologia', label: 'Tecnología', type: 'segmented', options: ['Digital', 'Analógica'], required: true },
+      { key: 'espesor', label: 'Espesor', type: 'choices', options: ['1,14 mm', '1,70 mm', '2,28 mm', '2,84 mm', '3,94 mm'], required: true },
+      { key: 'medidas', label: 'Medidas del clisé', type: 'input', placeholder: 'Ej: 50 x 80 cm', required: true },
+      { key: 'cantidad-colores', label: 'Cantidad de colores', type: 'segmented', options: ['1', '2', '3', '4+'] },
+      { key: 'sustrato', label: 'Sustrato a imprimir', type: 'choices', options: ['Rafia PP', 'Film', 'Papel', 'Cartón corrugado'] },
+      { key: 'lineatura', label: 'Lineatura', type: 'input', placeholder: 'Ej: 100 lpi' },
+      { key: 'cantidad', label: 'Cantidad', type: 'quantity', required: true },
+      { key: 'adjuntos', label: 'Adjuntar arte', type: 'uploader', helper: 'Subí el arte o PDF de impresión.' },
+      { key: 'observaciones', label: 'Observaciones', type: 'textarea', placeholder: 'Indicá máquina, distorsión, cinta doble faz o requerimientos de montaje.', fullWidth: true },
     ],
   },
   {

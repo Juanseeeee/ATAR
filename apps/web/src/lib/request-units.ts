@@ -29,6 +29,7 @@ const BY_CATEGORY: Record<string, UnitConfig> = {
   'Hilo multifilamento de PP': { units: ['kg', 'conos', 'bobinas'], default: 'kg' },
   'Hilo retorcido y Mallas': { units: ['kg', 'rollos', 'bobinas'], default: 'kg' },
   Maquinarias: { units: ['unidades'], default: 'unidades' },
+  Fotopolímeros: { units: ['unidades', 'juegos', 'cm²', 'm²'], default: 'unidades' },
   'A medida': { units: ['unidades', 'kg', 'metros', 'rollos'], default: 'unidades' },
 };
 
