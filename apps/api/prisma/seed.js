@@ -164,6 +164,24 @@ const REQUEST_CATALOG = [
       { key: 'observaciones', label: 'Observaciones', type: RequestCatalogFieldType.TEXTAREA, options: [], placeholder: 'Aclará viscosidad, anilox, secado o requerimientos especiales.', fullWidth: true },
     ],
   },
+  {
+    label: 'Fotopolímeros',
+    subtitle: 'Fotopolímeros digitales y analógicos',
+    imageSrc: '/polimero.png',
+    imageClassName: 'object-cover',
+    searchKeywords: ['fotopolimero', 'clise', 'cliche', 'plancha', 'flexografia', 'impresion'],
+    fields: [
+      { key: 'tecnologia', label: 'Tecnología', type: RequestCatalogFieldType.SEGMENTED, options: ['Digital', 'Analógica'], required: true },
+      { key: 'espesor', label: 'Espesor', type: RequestCatalogFieldType.CHOICES, options: ['1,14 mm', '1,70 mm', '2,28 mm', '2,84 mm', '3,94 mm'], required: true },
+      { key: 'medidas', label: 'Medidas del clisé', type: RequestCatalogFieldType.INPUT, options: [], placeholder: 'Ej: 50 x 80 cm', required: true },
+      { key: 'cantidad-colores', label: 'Cantidad de colores', type: RequestCatalogFieldType.SEGMENTED, options: ['1', '2', '3', '4+'] },
+      { key: 'sustrato', label: 'Sustrato a imprimir', type: RequestCatalogFieldType.CHOICES, options: ['Rafia PP', 'Film', 'Papel', 'Cartón corrugado'] },
+      { key: 'lineatura', label: 'Lineatura', type: RequestCatalogFieldType.INPUT, options: [], placeholder: 'Ej: 100 lpi' },
+      { key: 'cantidad', label: 'Cantidad', type: RequestCatalogFieldType.QUANTITY, options: [], required: true },
+      { key: 'adjuntos', label: 'Adjuntar arte', type: RequestCatalogFieldType.UPLOADER, options: [], helper: 'Subí el arte o PDF de impresión.' },
+      { key: 'observaciones', label: 'Observaciones', type: RequestCatalogFieldType.TEXTAREA, options: [], placeholder: 'Indicá máquina, distorsión, cinta doble faz o requerimientos de montaje.', fullWidth: true },
+    ],
+  },
 ];
 
 function buildSupplierProfileData(overrides = {}) {

@@ -19,6 +19,7 @@ type FieldInput = {
   required?: boolean;
   fullWidth?: boolean;
   inputType?: 'text' | 'date';
+  showWhen?: { label: string; values: string[] };
 };
 
 type CategoryInput = {
@@ -41,6 +42,7 @@ function toField(categoryId: string, input: FieldInput): RequestCatalogFieldReco
     required: input.required ?? false,
     fullWidth: input.fullWidth ?? false,
     inputType: input.inputType ?? null,
+    showWhen: input.showWhen ?? null,
   };
 }
 
@@ -62,6 +64,44 @@ function toCategory(input: CategoryInput): RequestCatalogCategoryRecord {
   };
 }
 
+/* Piezas que comparten varios rubros ------------------------------------- */
+
+const TIPO_TELA = 'Tipo de tela';
+const LAMINADA = 'Laminada / Coteada';
+const REJILLA = 'Rejilla';
+const IMPRESA = 'Impresa';
+
+/** Tipo de tela y, según cuál, la variante (laminado o rejilla). */
+function tipoTelaFields(options: string[] = ['Convencional', LAMINADA, 'Ventilada', REJILLA]): FieldInput[] {
+  const fields: FieldInput[] = [{ key: 'tipo-tela', label: TIPO_TELA, type: 'choices', options, required: true }];
+  if (options.includes(LAMINADA)) {
+    fields.push({ key: 'tipo-laminado', label: 'Tipo de laminado', type: 'segmented', options: ['Común', 'BOPP', 'Polipapel'], required: true, showWhen: { label: TIPO_TELA, values: [LAMINADA] } });
+  }
+  if (options.includes(REJILLA)) {
+    fields.push({ key: 'tipo-rejilla', label: 'Tipo de rejilla', type: 'segmented', options: ['Monofilamento', 'Rafia', 'Mono / Rafia'], required: true, showWhen: { label: TIPO_TELA, values: [REJILLA] } });
+  }
+  return fields;
+}
+
+const GRAMAJE: FieldInput = { key: 'gramaje', label: 'Gramaje', type: 'choices', options: ['60 g/m²', '70 g/m²', '80 g/m²', '90 g/m²', '100 g/m²', '120 g/m²'], required: true };
+const CANTIDAD: FieldInput = { key: 'cantidad', label: 'Cantidad', type: 'quantity', required: true };
+
+function observaciones(placeholder: string): FieldInput {
+  return { key: 'observaciones', label: 'Observaciones', type: 'textarea', placeholder, fullWidth: true };
+}
+
+/** Telas: medida, tipo de tela (con su variante) y gramaje. Son siempre de PP. */
+function telaFields(medidaPlaceholder: string, withFormat = false): FieldInput[] {
+  return [
+    ...(withFormat ? [{ key: 'formato', label: 'Formato', type: 'segmented', options: ['Plana', 'Tubular'], required: true } as FieldInput] : []),
+    { key: 'medida', label: 'Medida', type: 'input', placeholder: medidaPlaceholder, required: true },
+    ...tipoTelaFields(),
+    GRAMAJE,
+    CANTIDAD,
+    observaciones('Indicá aplicación, color, tratamiento UV o terminaciones.'),
+  ];
+}
+
 const CATALOG: CategoryInput[] = [
   {
     label: 'Big Bags',
@@ -70,16 +110,13 @@ const CATALOG: CategoryInput[] = [
     imageClassName: 'scale-[1.1]',
     searchKeywords: ['big bag', 'bolsas', 'fibc', 'polipropileno'],
     fields: [
-      { key: 'material', label: 'Material', type: 'choices', options: ['Polipropileno virgen', 'Reciclado', 'Laminado', 'Antiestatico'], required: true },
-      { key: 'capacidad', label: 'Capacidad', type: 'segmented', options: ['500 kg', '750 kg', '1000 kg', '1250 kg', '1500 kg', '2000 kg'], required: true },
-      { key: 'tipo-asa', label: 'Tipo de asa', type: 'choices', options: ['Loop', 'Cruzada', 'Tubular', '4 asas'], required: true },
-      { key: 'tipo-boca', label: 'Tipo de boca', type: 'segmented', options: ['Abierta', 'Faldon', 'Carga rapida', 'Valvula'] },
-      { key: 'tipo-fondo', label: 'Tipo de fondo', type: 'segmented', options: ['Plano', 'Descarga parcial', 'Descarga total'] },
-      { key: 'liner', label: 'Liner', type: 'segmented', options: ['Sin liner', 'Suelto', 'Pegado'] },
-      { key: 'impresion', label: 'Impresion', type: 'choices', options: ['Sin impresion', '1 color', '2 colores', 'Cobertura total'] },
-      { key: 'cantidad', label: 'Cantidad', type: 'quantity', required: true },
-      { key: 'adjuntos', label: 'Adjuntar archivos', type: 'uploader', helper: 'PDF, AI, PNG, STEP o DWG' },
-      { key: 'observaciones', label: 'Observaciones', type: 'textarea', placeholder: 'Indicá medidas, certificaciones, uso o cualquier detalle clave.', fullWidth: true },
+      { key: 'medida-util', label: 'Medida útil (ancho x largo x alto)', type: 'input', placeholder: 'Ej: 90 x 90 x 110 cm', required: true },
+      { key: 'parte-superior', label: 'Parte superior', type: 'choices', options: ['Boca abierta', 'Faldón de carga', 'Pico de carga', 'Tapa'], required: true },
+      { key: 'fondo', label: 'Fondo', type: 'choices', options: ['Fondo plano', 'Pico de descarga', 'Descarga total'], required: true },
+      ...tipoTelaFields(['Convencional', LAMINADA, 'Ventilada']),
+      { key: 'impresion', label: 'Impresión', type: 'segmented', options: ['Sin impresión', IMPRESA], required: true },
+      CANTIDAD,
+      observaciones('Indicá capacidad, tipo de asa, liner o cualquier detalle clave.'),
     ],
   },
   {
@@ -87,19 +124,14 @@ const CATALOG: CategoryInput[] = [
     subtitle: 'Tejidas y laminadas',
     imageSrc: '/bolsaspp.png',
     imageClassName: 'scale-[1.05]',
-    searchKeywords: ['bolsas', 'packaging', 'polipropileno'],
+    searchKeywords: ['costales', 'bolsas', 'sacos', 'packaging', 'polipropileno'],
     fields: [
-      { key: 'material', label: 'Material', type: 'choices', options: ['Virgen', 'Reciclado', 'Laminado', 'Mixto'], required: true },
-      { key: 'gramaje', label: 'Gramaje', type: 'segmented', options: ['40 g', '55 g', '70 g', '90 g', '120 g'], required: true },
-      { key: 'medidas', label: 'Medidas', type: 'input', placeholder: 'Ej: 50 x 80 cm', required: true },
-      { key: 'fuelle', label: 'Fuelle', type: 'segmented', options: ['Sin fuelle', 'Lateral', 'Base'] },
-      { key: 'laminado', label: 'Laminado', type: 'segmented', options: ['No', '1 cara', '2 caras'] },
-      { key: 'microperforado', label: 'Microperforado', type: 'segmented', options: ['No', 'Si'] },
-      { key: 'tipo-cierre', label: 'Tipo de cierre', type: 'choices', options: ['Abierto', 'Costura', 'Valvula', 'Troquel'] },
-      { key: 'impresion', label: 'Impresion', type: 'choices', options: ['Sin impresion', '1 color', '2 colores', 'Full print'] },
-      { key: 'cantidad', label: 'Cantidad', type: 'quantity', required: true },
-      { key: 'adjuntos', label: 'Adjuntar diseño', type: 'uploader', helper: 'Subí artes, croquis o referencias.' },
-      { key: 'observaciones', label: 'Observaciones', type: 'textarea', placeholder: 'Agregá detalles sobre sellado, uso o terminaciones.', fullWidth: true },
+      { key: 'medida-util', label: 'Medida útil (ancho x alto)', type: 'input', placeholder: 'Ej: 50 x 80 cm', required: true },
+      ...tipoTelaFields(),
+      { key: 'impresion', label: 'Impresión', type: 'segmented', options: ['Sin impresión', IMPRESA], required: true },
+      { key: 'caras-impresas', label: 'Caras impresas', type: 'segmented', options: ['Solo frente', 'Frente y dorso'], required: true, showWhen: { label: 'Impresión', values: [IMPRESA] } },
+      CANTIDAD,
+      observaciones('Indicá capacidad, tipo de cierre, colores de impresión o uso.'),
     ],
   },
   {
@@ -143,19 +175,7 @@ const CATALOG: CategoryInput[] = [
     imageSrc: '/telasweb.png',
     imageClassName: 'scale-[1.05]',
     searchKeywords: ['filmes', 'packaging', 'plasticos', 'telas', 'mallas'],
-    fields: [
-      { key: 'material', label: 'Material', type: 'choices', options: ['PP', 'PE', 'Mixto', 'Reciclado'], required: true },
-      { key: 'ancho', label: 'Ancho', type: 'input', placeholder: 'Ej: 160 cm', required: true },
-      { key: 'largo', label: 'Largo', type: 'input', placeholder: 'Ej: 500 m' },
-      { key: 'espesor', label: 'Espesor', type: 'input', placeholder: 'Ej: 120 micrones' },
-      { key: 'color', label: 'Color', type: 'segmented', options: ['Natural', 'Blanco', 'Negro', 'Custom'] },
-      { key: 'tratamiento-uv', label: 'Tratamiento UV', type: 'segmented', options: ['No', 'UV 6 meses', 'UV 12 meses', 'Reforzado'] },
-      { key: 'laminado', label: 'Laminado', type: 'segmented', options: ['No', 'Simple', 'Doble'] },
-      { key: 'impresion', label: 'Impresion', type: 'choices', options: ['Sin impresion', '1 color', '2 colores', 'Alta cobertura'] },
-      { key: 'cantidad', label: 'Cantidad', type: 'quantity', required: true },
-      { key: 'adjuntos', label: 'Adjuntar plano', type: 'uploader', helper: 'Subí referencia visual, plano o muestra.' },
-      { key: 'observaciones', label: 'Observaciones', type: 'textarea', placeholder: 'Indicá aplicación, tensión, tratamiento o acabado.', fullWidth: true },
-    ],
+    fields: telaFields('Ej: 160 cm de ancho', true),
   },
   {
     label: 'Sacos',
@@ -182,14 +202,21 @@ const CATALOG: CategoryInput[] = [
     imageClassName: 'scale-[1.05]',
     searchKeywords: ['impresiones', 'packaging', 'conversion', 'tintas', 'aditivos'],
     fields: [
-      { key: 'tipo-tinta', label: 'Tipo de tinta', type: 'choices', options: ['Flexografica', 'Huecograbado', 'Base agua', 'Base solvente'], required: true },
-      { key: 'base', label: 'Base', type: 'segmented', options: ['Agua', 'Solvente', 'UV', 'Especial'], required: true },
-      { key: 'cantidad-colores', label: 'Cantidad de colores', type: 'segmented', options: ['1', '2', '3', '4+'] },
-      { key: 'pantone', label: 'Pantone', type: 'input', placeholder: 'Ej: Pantone 286 C' },
-      { key: 'sustrato', label: 'Sustrato', type: 'choices', options: ['PP', 'PE', 'Papel', 'Mixto'] },
-      { key: 'cantidad', label: 'Cantidad', type: 'quantity', required: true },
-      { key: 'adjuntos', label: 'Adjuntar diseño', type: 'uploader', helper: 'Subí artes, layout o especificaciones.' },
-      { key: 'observaciones', label: 'Observaciones', type: 'textarea', placeholder: 'Aclará viscosidad, anilox, secado o requerimientos especiales.', fullWidth: true },
+      { key: 'color', label: 'Color', type: 'choices', options: ['Blanco', 'Negro', 'Azul', 'Rojo', 'Amarillo', 'Verde'], required: true },
+      CANTIDAD,
+      observaciones('Indicá el Pantone, el sustrato o la máquina en la que se usa.'),
+    ],
+  },
+  {
+    label: 'Fotopolímeros',
+    subtitle: 'Clisés a partir de tu archivo',
+    imageSrc: '/polimero.png',
+    imageClassName: 'object-cover',
+    searchKeywords: ['fotopolimero', 'clise', 'cliche', 'plancha', 'flexografia', 'impresion'],
+    fields: [
+      { key: 'archivo-editable', label: 'Archivo editable', type: 'uploader', helper: 'AI, PDF, EPS, SVG o CDR', required: true },
+      CANTIDAD,
+      observaciones('Indicá medidas, espesor, máquina o cualquier requerimiento de montaje.'),
     ],
   },
   {
@@ -217,14 +244,11 @@ const CATALOG: CategoryInput[] = [
     imageClassName: 'scale-[1.05]',
     searchKeywords: ['cintas', 'cintillas', 'flejado', 'strapping'],
     fields: [
-      { key: 'material', label: 'Material', type: 'choices', options: ['Polipropileno', 'PET', 'Poliester'], required: true },
-      { key: 'ancho', label: 'Ancho', type: 'input', placeholder: 'Ej: 12 mm', required: true },
-      { key: 'espesor', label: 'Espesor', type: 'input', placeholder: 'Ej: 0.6 mm' },
-      { key: 'color', label: 'Color', type: 'segmented', options: ['Natural', 'Blanco', 'Negro', 'Custom'] },
-      { key: 'impresion', label: 'Impresion', type: 'choices', options: ['Sin impresion', '1 color', '2 colores'] },
-      { key: 'cantidad', label: 'Cantidad', type: 'quantity', required: true },
-      { key: 'adjuntos', label: 'Adjuntar diseño', type: 'uploader', helper: 'Subí artes o referencias.' },
-      { key: 'observaciones', label: 'Observaciones', type: 'textarea', placeholder: 'Indicá resistencia, uso o terminaciones.', fullWidth: true },
+      { key: 'producto', label: 'Producto', type: 'segmented', options: ['Cintillas', 'Cintas'], required: true },
+      { key: 'ancho', label: 'Ancho', type: 'input', placeholder: 'Ej: 12 mm', required: true, showWhen: { label: 'Producto', values: ['Cintas'] } },
+      { key: 'color', label: 'Color', type: 'segmented', options: ['Blanca', 'Color'], required: true, showWhen: { label: 'Producto', values: ['Cintas'] } },
+      CANTIDAD,
+      observaciones('Indicá uso, resistencia o terminaciones.'),
     ],
   },
   {
@@ -234,13 +258,11 @@ const CATALOG: CategoryInput[] = [
     imageClassName: 'scale-[1.05]',
     searchKeywords: ['hilo', 'multifilamento', 'polipropileno', 'tejeduria'],
     fields: [
-      { key: 'titulo', label: 'Titulo / Denier', type: 'input', placeholder: 'Ej: 1000 den', required: true },
-      { key: 'cabos', label: 'Cabos', type: 'segmented', options: ['1', '2', '3', '4+'] },
-      { key: 'tenacidad', label: 'Tenacidad', type: 'input', placeholder: 'Ej: 7 g/den' },
-      { key: 'color', label: 'Color', type: 'segmented', options: ['Natural', 'Blanco', 'Negro', 'Custom'] },
-      { key: 'presentacion', label: 'Presentacion', type: 'segmented', options: ['Cono', 'Bobina', 'Carrete'] },
-      { key: 'cantidad', label: 'Cantidad', type: 'quantity', required: true },
-      { key: 'observaciones', label: 'Observaciones', type: 'textarea', placeholder: 'Indicá aplicación o requerimientos técnicos.', fullWidth: true },
+      { key: 'denier', label: 'Denier', type: 'input', placeholder: 'Ej: 1000 den', required: true },
+      { key: 'tenacidad', label: 'Tenacidad', type: 'segmented', options: ['Media tenacidad (MT)', 'Alta tenacidad (AT)'], required: true },
+      { key: 'color', label: 'Color', type: 'choices', options: ['Natural', 'Blanco', 'Negro'], required: true },
+      CANTIDAD,
+      observaciones('Indicá aplicación, presentación o requerimientos técnicos.'),
     ],
   },
   {
@@ -250,13 +272,11 @@ const CATALOG: CategoryInput[] = [
     imageClassName: 'scale-[1.05]',
     searchKeywords: ['hilo', 'retorcido', 'mallas', 'arrolladora', 'agro'],
     fields: [
-      { key: 'producto', label: 'Producto', type: 'segmented', options: ['Hilo retorcido', 'Malla', 'Ambos'], required: true },
-      { key: 'material', label: 'Material', type: 'choices', options: ['Polipropileno', 'Polietileno', 'Mixto'], required: true },
-      { key: 'ancho-malla', label: 'Ancho de malla', type: 'input', placeholder: 'Ej: 1.23 m' },
-      { key: 'color', label: 'Color', type: 'segmented', options: ['Natural', 'Blanco', 'Negro', 'Custom'] },
-      { key: 'cantidad', label: 'Cantidad', type: 'quantity', required: true },
-      { key: 'adjuntos', label: 'Adjuntar especificaciones', type: 'uploader', helper: 'Subí ficha técnica o referencias.' },
-      { key: 'observaciones', label: 'Observaciones', type: 'textarea', placeholder: 'Indicá tipo de rollo, largo o requerimientos.', fullWidth: true },
+      { key: 'producto', label: 'Producto', type: 'segmented', options: ['Hilo retorcido', 'Malla'], required: true },
+      { key: 'presentacion', label: 'Presentación', type: 'segmented', options: ['Fardo', 'Megafardo'], required: true, showWhen: { label: 'Producto', values: ['Hilo retorcido'] } },
+      { key: 'ancho', label: 'Ancho', type: 'input', placeholder: 'Ej: 1,23 m', required: true, showWhen: { label: 'Producto', values: ['Malla'] } },
+      CANTIDAD,
+      observaciones('Indicá tipo de rollo, largo o requerimientos.'),
     ],
   },
   {
@@ -265,16 +285,7 @@ const CATALOG: CategoryInput[] = [
     imageSrc: '/telatubular.png',
     imageClassName: 'scale-[1.05]',
     searchKeywords: ['telas', 'tubulares', 'polipropileno', 'tejido'],
-    fields: [
-      { key: 'material', label: 'Material', type: 'choices', options: ['PP', 'PE', 'Mixto'], required: true },
-      { key: 'ancho', label: 'Ancho tubular', type: 'input', placeholder: 'Ej: 60 cm', required: true },
-      { key: 'gramaje', label: 'Gramaje', type: 'segmented', options: ['60 g', '80 g', '100 g', '120 g', 'Custom'] },
-      { key: 'color', label: 'Color', type: 'segmented', options: ['Natural', 'Blanco', 'Negro', 'Custom'] },
-      { key: 'tratamiento-uv', label: 'Tratamiento UV', type: 'segmented', options: ['No', 'UV 6 meses', 'UV 12 meses'] },
-      { key: 'impresion', label: 'Impresion', type: 'choices', options: ['Sin impresion', '1 color', '2 colores'] },
-      { key: 'cantidad', label: 'Cantidad', type: 'quantity', required: true },
-      { key: 'observaciones', label: 'Observaciones', type: 'textarea', placeholder: 'Indicá aplicación o terminaciones.', fullWidth: true },
-    ],
+    fields: telaFields('Ej: 60 cm de ancho del tubo'),
   },
   {
     label: 'Telas planas',
@@ -282,16 +293,7 @@ const CATALOG: CategoryInput[] = [
     imageSrc: '/telaplana.png',
     imageClassName: 'scale-[1.05]',
     searchKeywords: ['telas', 'planas', 'polipropileno', 'coberturas'],
-    fields: [
-      { key: 'material', label: 'Material', type: 'choices', options: ['PP', 'PE', 'Mixto'], required: true },
-      { key: 'ancho', label: 'Ancho', type: 'input', placeholder: 'Ej: 320 cm', required: true },
-      { key: 'gramaje', label: 'Gramaje', type: 'segmented', options: ['60 g', '80 g', '100 g', '120 g', 'Custom'] },
-      { key: 'color', label: 'Color', type: 'segmented', options: ['Natural', 'Blanco', 'Negro', 'Custom'] },
-      { key: 'tratamiento-uv', label: 'Tratamiento UV', type: 'segmented', options: ['No', 'UV 6 meses', 'UV 12 meses'] },
-      { key: 'impresion', label: 'Impresion', type: 'choices', options: ['Sin impresion', '1 color', '2 colores'] },
-      { key: 'cantidad', label: 'Cantidad', type: 'quantity', required: true },
-      { key: 'observaciones', label: 'Observaciones', type: 'textarea', placeholder: 'Indicá aplicación o terminaciones.', fullWidth: true },
-    ],
+    fields: telaFields('Ej: 320 cm de ancho'),
   },
   {
     label: 'Maquinarias',
@@ -300,13 +302,9 @@ const CATALOG: CategoryInput[] = [
     imageClassName: 'scale-[1.05]',
     searchKeywords: ['maquinas', 'equipos', 'extrusion', 'impresion', 'conversion'],
     fields: [
-      { key: 'tipo-maquina', label: 'Tipo de máquina', type: 'choices', options: ['Extrusora', 'Impresora', 'Telar', 'Conversión', 'Reciclado', 'Otra'], required: true },
-      { key: 'aplicacion', label: 'Aplicación', type: 'input', placeholder: 'Ej: Big Bags, bolsas, film' },
-      { key: 'capacidad', label: 'Capacidad / Producción', type: 'input', placeholder: 'Ej: 300 kg/h' },
-      { key: 'condicion', label: 'Condición', type: 'segmented', options: ['Nueva', 'Usada', 'Reacondicionada'], required: true },
-      { key: 'cantidad', label: 'Cantidad', type: 'quantity', required: true },
-      { key: 'adjuntos', label: 'Adjuntar especificaciones', type: 'uploader', helper: 'Subí ficha técnica o requerimientos.' },
-      { key: 'observaciones', label: 'Observaciones', type: 'textarea', placeholder: 'Indicá voltaje, dimensiones o requerimientos.', fullWidth: true },
+      { key: 'tipo', label: 'Tipo', type: 'choices', options: ['Equipos', 'Líneas de producción', 'Accesorios'], required: true },
+      CANTIDAD,
+      observaciones('Contá qué máquina necesitás: proceso, capacidad, nueva o usada, voltaje.'),
     ],
   },
   {

@@ -202,7 +202,7 @@ export default function ComoFuncionaPage() {
               </VideoTrigger>
               <Link
                 className="inline-flex h-12 items-center justify-center gap-2 rounded-[10px] border border-white/50 px-6 text-sm font-semibold transition hover:bg-white/10"
-                href="/acceso"
+                href="/acceso?modo=registro"
               >
                 <span className="inline-flex items-center gap-2 text-white">
                   Crear cuenta
@@ -317,7 +317,7 @@ export default function ComoFuncionaPage() {
                 <CheckItem>Solicitá cotizaciones en minutos</CheckItem>
                 <CheckItem>Encontrá nuevas alternativas</CheckItem>
               </ul>
-              <Link className={`${primaryCta} mt-7`} href="/acceso">
+              <Link className={`${primaryCta} mt-7`} href="/acceso?perfil=cliente">
                 <span className="inline-flex items-center gap-2 text-white">
                   Quiero comprar
                   <Icon name="arrow" className="h-4 w-4" />
@@ -339,7 +339,7 @@ export default function ComoFuncionaPage() {
                 <CheckItem dark>Conectá con empresas de la región</CheckItem>
                 <CheckItem dark>Hacé crecer tu negocio</CheckItem>
               </ul>
-              <Link className={`${primaryCta} mt-7`} href="/acceso">
+              <Link className={`${primaryCta} mt-7`} href="/acceso?perfil=proveedor">
                 <span className="inline-flex items-center gap-2 text-white">
                   Quiero vender
                   <Icon name="arrow" className="h-4 w-4" />
@@ -422,7 +422,7 @@ export default function ComoFuncionaPage() {
             Ya seas comprador o proveedor, creá tu cuenta y empezá a formar parte de la red comercial de la industria de la
             rafia.
           </p>
-          <Link className={`${primaryCta} mt-8`} href="/acceso">
+          <Link className={`${primaryCta} mt-8`} href="/acceso?modo=registro">
             <span className="inline-flex items-center gap-2 text-white">
               Crear cuenta
               <Icon name="arrow" className="h-4 w-4" />

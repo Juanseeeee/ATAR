@@ -230,7 +230,7 @@ export default function SiteHeader() {
                   Tailwind: el color del texto va en un hijo. */}
               <Link
                 className="hidden h-10 items-center rounded-[10px] bg-[#1f5bff] px-4 text-sm font-semibold transition hover:bg-[#194ee6] sm:inline-flex"
-                href="/acceso"
+                href="/acceso?modo=registro"
               >
                 <span className="inline-flex items-center gap-2 text-white">
                   Crear cuenta
@@ -314,7 +314,7 @@ export default function SiteHeader() {
                   </Link>
                   <Link
                     className="rounded-xl bg-[#1f5bff] px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#194ee6]"
-                    href="/acceso"
+                    href="/acceso?modo=registro"
                   >
                     Crear cuenta gratis
                   </Link>

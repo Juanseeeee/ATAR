@@ -7,6 +7,7 @@ import CompanyLogo from '@/components/dashboard/company-logo';
 import ArgentinaMap from '@/components/home/argentina-map';
 import SupplierShowcaseCard from '@/components/marketing/supplier-showcase-card';
 import { HeroLead, HeroSearch, HeroSuggestions, HeroTitle } from '@/components/marketing/page-hero';
+import { useRegion } from '@/components/region/region-provider';
 import Reveal from '@/components/ui/reveal';
 import { isCategoryHidden, withoutHiddenCategories } from '@/lib/hidden-categories';
 import { atarApi, SUPPLIER_ROLE_LABELS, type SupplierDirectoryRecord, type SupplierRole } from '@/lib/atar-api';
@@ -19,7 +20,7 @@ import { atarApi, SUPPLIER_ROLE_LABELS, type SupplierDirectoryRecord, type Suppl
  */
 const FAMILIES: { id: string; label: string; image: string; catalog: string[]; keywords: string[] }[] = [
   { id: 'bigbags', label: 'Big Bags', image: '/bigbags.png', catalog: ['Big Bags'], keywords: ['big bag', 'fibc'] },
-  { id: 'sacos', label: 'Sacos y bolsas PP', image: '/bolsaspp.png', catalog: ['Sacos', 'Bolsas PP'], keywords: ['saco', 'bolsa'] },
+  { id: 'costales', label: 'Bolsas PP', image: '/bolsaspp.png', catalog: ['Bolsas PP'], keywords: ['costal', 'bolsa', 'saco', 'rafia'] },
   {
     id: 'telas',
     label: 'Telas y rafia',
@@ -128,6 +129,7 @@ const primaryCta =
   'inline-flex h-12 items-center justify-center gap-2 rounded-[10px] bg-[#1f5bff] px-6 text-sm font-semibold shadow-[0_14px_36px_rgba(31,91,255,0.35)] transition hover:-translate-y-0.5 hover:bg-[#194ee6]';
 
 export default function ProveedoresPage() {
+  const { categoryName } = useRegion();
   const [suppliers, setSuppliers] = useState<SupplierDirectoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -228,8 +230,8 @@ export default function ProveedoresPage() {
           supplierLocation(supplier),
           supplier.description ?? '',
           supplier.about ?? '',
-          ...supplierProducts(supplier),
-          ...ownFamilies.map((family) => family.label),
+          ...supplierProducts(supplier).flatMap((item) => [item, categoryName(item)]),
+          ...ownFamilies.flatMap((family) => [family.label, categoryName(family.label)]),
         ].join(' '),
       ).includes(query);
     });
@@ -244,7 +246,7 @@ export default function ProveedoresPage() {
       // Relevancia: verificados primero, después los que cubren más rubros.
       return Number(right.isVerified) - Number(left.isVerified) || supplierProducts(right).length - supplierProducts(left).length;
     });
-  }, [certifications, families, location, roles, search, sort, suppliers, verifiedOnly]);
+  }, [categoryName, certifications, families, location, roles, search, sort, suppliers, verifiedOnly]);
 
   const visibleSuppliers = filteredSuppliers.slice(0, visibleCount);
   const featuredSuppliers = useMemo(
@@ -373,7 +375,7 @@ export default function ProveedoresPage() {
                     key={family.id}
                     checked={families.includes(family.id)}
                     count={familyCounts.get(family.id) ?? 0}
-                    label={family.label}
+                    label={categoryName(family.label)}
                     onChange={() => {
                       setFamilies((current) => toggle(current, family.id));
                       resetPaging();
@@ -615,7 +617,7 @@ export default function ProveedoresPage() {
           </div>
           <Link
             className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[10px] bg-white px-6 text-sm font-semibold transition hover:-translate-y-0.5"
-            href="/acceso"
+            href="/acceso?perfil=proveedor"
           >
             <span className="inline-flex items-center gap-2 text-[#1f5bff]">
               Quiero ser proveedor
@@ -673,7 +675,8 @@ function Checkbox({ checked, label, count, onChange }: { checked: boolean; label
 
 function SupplierCard({ supplier }: { supplier: SupplierDirectoryRecord }) {
   const family = supplierFamilies(supplier)[0];
-  const products = supplierProducts(supplier).slice(0, 3);
+  const { categoryName } = useRegion();
+  const products = supplierProducts(supplier).slice(0, 3).map(categoryName);
   const summary = supplier.about ?? supplier.description;
   return (
     <article className="group flex h-full flex-col overflow-hidden rounded-[14px] border border-slate-200 bg-white transition duration-300 hover:-translate-y-1 hover:border-[#1f5bff]/40 hover:shadow-[0_18px_40px_rgba(15,23,42,0.08)]">

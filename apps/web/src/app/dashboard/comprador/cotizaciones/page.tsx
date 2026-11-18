@@ -284,7 +284,7 @@ export default function BuyerQuotesPage() {
                     </span>
                     <Link
                       className="inline-flex h-9 items-center justify-center rounded-xl border border-indigo-200 bg-indigo-100 px-4 text-[13px] font-semibold text-indigo-700 hover:bg-indigo-100"
-                      href={`/dashboard/comprador/solicitudes/${request.id}`}
+                      href={`/dashboard/comprador/solicitudes/${request.id}${awarded ? '' : '/comparar'}`}
                     >
                       {awarded ? 'Ver detalle' : 'Comparar'}
                     </Link>

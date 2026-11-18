@@ -10,7 +10,9 @@ export const BUYER_HOME_HREF = '/dashboard/comprador';
  * el header de escritorio y el home compartan el mismo término sin estado
  * global: el home filtra productos, categorías y proveedores con ese valor.
  */
-function SearchForm({ initialQuery, size }: { initialQuery: string; size: 'header' | 'page' }) {
+type Tone = 'dark' | 'light';
+
+function SearchForm({ initialQuery, size, tone }: { initialQuery: string; size: 'header' | 'page'; tone: Tone }) {
   const router = useRouter();
   const [value, setValue] = useState(initialQuery);
 
@@ -20,6 +22,12 @@ function SearchForm({ initialQuery, size }: { initialQuery: string; size: 'heade
   }
 
   const height = size === 'header' ? 'h-11' : 'h-12';
+  // Sobre fondo azul el borde es blanco; sobre la barra blanca, gris.
+  const inputTone =
+    tone === 'light'
+      ? 'border-slate-300 bg-slate-50 focus:border-[#1f5bff] focus:bg-white focus:ring-[#1f5bff]/15'
+      : 'border-white bg-white focus:ring-white/70';
+  const buttonTone = tone === 'light' ? 'border-[#1847ff] bg-[#1847ff] hover:bg-[#0f3ff5]' : 'border-white bg-[#0b1f66] hover:bg-[#06123f]';
 
   return (
     <form
@@ -35,7 +43,7 @@ function SearchForm({ initialQuery, size }: { initialQuery: string; size: 'heade
       </label>
       <div className="relative min-w-0 flex-1">
         <input
-          className={`${height} w-full rounded-l-[10px] border border-r-0 border-white bg-white pl-4 pr-9 text-[15px] text-slate-950 outline-none transition placeholder:text-slate-500 focus:ring-2 focus:ring-white/70`}
+          className={`${height} w-full rounded-l-[10px] border border-r-0 pl-4 pr-9 text-[15px] text-slate-950 outline-none transition placeholder:text-slate-500 focus:ring-2 ${inputTone}`}
           id={`buyer-home-search-${size}`}
           onChange={(event) => setValue(event.target.value)}
           placeholder="¿Qué necesitás comprar para tu empresa?"
@@ -62,7 +70,7 @@ function SearchForm({ initialQuery, size }: { initialQuery: string; size: 'heade
       </div>
       <button
         aria-label="Buscar"
-        className={`${height} flex shrink-0 items-center justify-center gap-2 rounded-r-[10px] border border-white bg-[#0b1f66] px-4 text-[14px] font-semibold text-white transition hover:bg-[#06123f] sm:px-5`}
+        className={`${height} flex shrink-0 items-center justify-center gap-2 rounded-r-[10px] border px-4 text-[14px] font-semibold text-white transition sm:px-5 ${buttonTone}`}
         type="submit"
       >
         <svg aria-hidden="true" className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24">
@@ -74,18 +82,18 @@ function SearchForm({ initialQuery, size }: { initialQuery: string; size: 'heade
   );
 }
 
-function SearchWithQuery({ size }: { size: 'header' | 'page' }) {
+function SearchWithQuery({ size, tone }: { size: 'header' | 'page'; tone: Tone }) {
   const searchParams = useSearchParams();
   const query = searchParams?.get('q') ?? '';
   // La key reinicia el campo cuando la búsqueda cambia desde otro lado
   // (por ejemplo, "Limpiar búsqueda" en el home).
-  return <SearchForm key={query} initialQuery={query} size={size} />;
+  return <SearchForm key={query} initialQuery={query} size={size} tone={tone} />;
 }
 
-export default function BuyerHomeSearch({ size = 'page' }: { size?: 'header' | 'page' }) {
+export default function BuyerHomeSearch({ size = 'page', tone = 'dark' }: { size?: 'header' | 'page'; tone?: Tone }) {
   return (
-    <Suspense fallback={<SearchForm initialQuery="" size={size} />}>
-      <SearchWithQuery size={size} />
+    <Suspense fallback={<SearchForm initialQuery="" size={size} tone={tone} />}>
+      <SearchWithQuery size={size} tone={tone} />
     </Suspense>
   );
 }

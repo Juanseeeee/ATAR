@@ -1,6 +1,9 @@
+'use client';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import CompanyLogo from '@/components/dashboard/company-logo';
+import { useRegion } from '@/components/region/region-provider';
 import type { SupplierDirectoryRecord } from '@/lib/atar-api';
 import { supplierLogoUrl } from '@/lib/supplier-logos';
 
@@ -107,10 +110,11 @@ function VerifiedBadge({ className = 'h-5 w-5' }: { className?: string }) {
 
 export default function SupplierShowcaseCard({ supplier }: { supplier: SupplierDirectoryRecord }) {
   const logoUrl = supplierLogoUrl(supplier);
+  const { categoryName } = useRegion();
   // Primero los productos terminados; las materias primas (polímeros) van al final.
   const isRawMaterial = (item: string) => /polipropileno|polietileno|polimero/.test(normalize(item));
-  const products = [...supplier.mainProducts.filter((item) => !isRawMaterial(item)), ...supplier.mainProducts.filter(isRawMaterial)];
-  const subtitle = products[0] ?? supplier.categories[0] ?? '';
+  const products = [...supplier.mainProducts.filter((item) => !isRawMaterial(item)), ...supplier.mainProducts.filter(isRawMaterial)].map(categoryName);
+  const subtitle = products[0] ?? (supplier.categories[0] ? categoryName(supplier.categories[0]) : '');
   // Dos productos y el código de la empresa.
   const tags = products.slice(0, 2);
   if (supplier.genericCode) {

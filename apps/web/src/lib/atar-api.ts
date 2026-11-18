@@ -1,4 +1,5 @@
-import { isCategoryHidden, withoutHiddenCategories } from './hidden-categories';
+import { withoutHiddenCategories } from './hidden-categories';
+import { FALLBACK_REQUEST_CATEGORIES } from './request-catalog-fallback';
 
 export type MembershipRole = 'ADMIN' | 'BUYER' | 'SUPPLIER' | 'SELLER';
 export type CompanyType = 'BUYER' | 'SUPPLIER' | 'HYBRID';
@@ -754,6 +755,8 @@ export type RequestCatalogFieldRecord = {
   required: boolean;
   fullWidth: boolean;
   inputType: RequestCatalogInputType | null;
+  /** Solo se pregunta si otro campo tiene alguno de estos valores. */
+  showWhen?: { label: string; values: string[] } | null;
 };
 
 export type RequestCatalogCategoryRecord = {
@@ -1122,10 +1125,11 @@ export const atarApi = {
     return request<MarketplaceStatsRecord>('/catalog/stats');
   },
   getRequestCategories() {
-    // Los rubros ocultos (ver hidden-categories) no llegan a ninguna pantalla.
-    return request<RequestCatalogCategoryRecord[]>('/catalog/request-categories').then((list) =>
-      list.filter((category) => !isCategoryHidden(category.label)),
-    );
+    // El catálogo de rubros (nombres, preguntas de especificaciones e íconos)
+    // vive en el frontend: lib/request-catalog-fallback. Así se ve igual en
+    // cualquier entorno, sin depender de lo que tenga cargado cada base. Ya
+    // viene sin los rubros ocultos (ver hidden-categories).
+    return Promise.resolve<RequestCatalogCategoryRecord[]>(FALLBACK_REQUEST_CATEGORIES);
   },
   getMarketplaceSupplierBySlug(slug: string) {
     return request<SupplierDirectoryRecord>(`/catalog/suppliers/${slug}`).then(hideSupplierCategories);

@@ -37,7 +37,7 @@ const PROFILE_OPTIONS = [
     label: 'Proveedor',
     tagline: 'Quiero vender',
     summary: 'Para empresas proveedoras. Es la cuenta principal: recibís solicitudes, cotizás y administrás a tu equipo de vendedores.',
-    tone: { row: 'bg-[#eef1fb]', active: 'bg-[#e2e7f8] shadow-[inset_4px_0_0_#3450b0]', icon: 'bg-[#dde3f7] text-[#3450b0]', text: 'text-[#3450b0]' },
+    tone: { row: 'bg-[#f3f0ff]', active: 'bg-[#e8e2ff] shadow-[inset_4px_0_0_#6440e8]', icon: 'bg-[#e0d8ff] text-[#6440e8]', text: 'text-[#6440e8]' },
     can: [
       'Ver todas las solicitudes que recibe la empresa',
       'Asignar y reasignar solicitudes a tus vendedores',
@@ -155,9 +155,12 @@ const PROFILE_BY_PARAM: Record<string, ProfileValue> = {
 export default function AccessPanel() {
   const router = useRouter();
   // Si llega un perfil válido, se abre el registro con ese perfil elegido.
-  const requestedProfile = PROFILE_BY_PARAM[useSearchParams()?.get('perfil') ?? ''];
+  const searchParams = useSearchParams();
+  const requestedProfile = PROFILE_BY_PARAM[searchParams?.get('perfil') ?? ''];
+  // ?modo=registro abre el alta sin perfil preelegido (botones "Crear cuenta").
+  const wantsRegister = searchParams?.get('modo') === 'registro';
   const { isHydrated, isAuthenticated, signIn, getDefaultPath } = useAuth();
-  const [mode, setMode] = useState<Mode>(requestedProfile ? 'register' : 'login');
+  const [mode, setMode] = useState<Mode>(requestedProfile || wantsRegister ? 'register' : 'login');
   // Si se llegó desde un botón de perfil de la landing, se muestra solo ese
   // perfil. "Cambiar de perfil" vuelve a mostrar los tres.
   const [profileLocked, setProfileLocked] = useState(Boolean(requestedProfile));
@@ -646,7 +649,12 @@ export default function AccessPanel() {
           {/* En el alta las dos acciones van en una fila para ganar alto. */}
           <div className={mode === 'register' ? 'grid gap-3 sm:grid-cols-2' : 'space-y-3'}>
           <button
-            className="flex h-11 w-full items-center justify-center gap-3 rounded-[14px] bg-[#1f5bff] px-5 text-[15px] font-semibold text-white shadow-[0_10px_24px_rgba(31,91,255,0.3)] transition hover:bg-[#194ee6] disabled:cursor-not-allowed disabled:opacity-60"
+            className={`flex h-11 w-full items-center justify-center gap-3 rounded-[14px] px-5 text-[15px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
+              // El proveedor conserva su violeta (el mismo de su panel).
+              mode === 'register' && form.role === 'SUPPLIER'
+                ? 'bg-[#6440e8] shadow-[0_10px_24px_rgba(100,64,232,0.3)] hover:bg-[#5332c7]'
+                : 'bg-[#1f5bff] shadow-[0_10px_24px_rgba(31,91,255,0.3)] hover:bg-[#194ee6]'
+            }`}
             disabled={isSubmitting}
             type="submit"
           >
