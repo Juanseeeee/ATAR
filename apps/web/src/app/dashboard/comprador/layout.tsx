@@ -43,9 +43,9 @@ export default function BuyerDashboardLayout({ children }: { children: React.Rea
           isBuyerWizard ? 'bg-[linear-gradient(180deg,#f7f9ff_0%,#eef2fe_100%)]' : 'bg-[#e9edf5]'
         } ${isBuyerMessages ? 'h-[100dvh] overflow-hidden' : 'min-h-screen'}`}
       >
-        <BuyerSidebar notificationCount={notificationCount} session={session} />
+        <BuyerSidebar notificationCount={notificationCount} />
         <div className={`flex min-w-0 flex-1 flex-col ${isBuyerMessages ? 'h-[100dvh] overflow-hidden' : ''}`}>
-          <BuyerMarketplaceHeader notificationCount={notificationCount} />
+          <BuyerMarketplaceHeader notificationCount={notificationCount} session={session} />
           {isFullBleed ? (
             <div className={showBottomNav ? 'pb-[76px] lg:pb-0' : undefined}>{children}</div>
           ) : isBuyerMessages ? (

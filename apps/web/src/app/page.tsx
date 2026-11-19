@@ -228,11 +228,12 @@ const COUNTRIES: { name: string; flag: FlagName | null }[] = [
 // que en los <Link> el color del texto va en un <span> hijo.
 // Accesos del hero. El perfil viaja a /acceso, que abre el registro con ese
 // perfil preseleccionado (ver AccessPanel).
-// Cada perfil lleva su color (el mismo que usa su panel en la plataforma).
-const HERO_ROLES: { label: string; hint: string; href: string; icon: IconName; color: string }[] = [
-  { label: 'Cliente', hint: 'Quiero comprar', href: '/acceso?perfil=cliente', icon: 'cart', color: 'text-[#1f5bff]' },
-  { label: 'Vendedor', hint: 'Trabajo para una empresa', href: '/acceso?perfil=vendedor', icon: 'users', color: 'text-[#16a34a]' },
-  { label: 'Proveedor', hint: 'Quiero vender mis productos', href: '/acceso?perfil=proveedor', icon: 'factory', color: 'text-[#6440e8]' },
+// Cada perfil lleva su color (el mismo que usa su panel en la plataforma): el
+// del texto y, al pasar el mouse, el de toda la tarjeta.
+const HERO_ROLES: { label: string; hint: string; href: string; icon: IconName; color: string; fill: string }[] = [
+  { label: 'Cliente', hint: 'Quiero comprar', href: '/acceso?perfil=cliente', icon: 'cart', color: 'text-[#1f5bff]', fill: 'bg-[#1f5bff] shadow-[0_18px_44px_rgba(31,91,255,0.40)]' },
+  { label: 'Vendedor', hint: 'Trabajo para una empresa', href: '/acceso?perfil=vendedor', icon: 'users', color: 'text-[#16a34a]', fill: 'bg-[#16a34a] shadow-[0_18px_44px_rgba(22,163,74,0.38)]' },
+  { label: 'Proveedor', hint: 'Quiero vender mis productos', href: '/acceso?perfil=proveedor', icon: 'factory', color: 'text-[#6440e8]', fill: 'bg-[#6440e8] shadow-[0_18px_44px_rgba(100,64,232,0.40)]' },
 ];
 
 const primaryCta =
@@ -275,17 +276,21 @@ export default function Home() {
               {HERO_ROLES.map((role) => (
                 <Link
                   key={role.label}
-                  className={`group relative flex flex-col overflow-hidden rounded-[18px] border border-white/80 bg-white/45 px-5 py-4 shadow-[0_10px_30px_rgba(31,64,160,0.10),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:bg-white/70 hover:shadow-[0_18px_44px_rgba(31,64,160,0.18),inset_0_1px_0_#fff] ${role.color}`}
+                  className="group relative flex flex-col overflow-hidden rounded-[18px] border border-white/80 bg-white/45 shadow-[0_10px_30px_rgba(31,64,160,0.10),inset_0_1px_0_rgba(255,255,255,0.9)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-transparent"
                   href={role.href}
                 >
+                  {/* Al pasar el mouse, toda la tarjeta toma el color del perfil. */}
+                  <span aria-hidden="true" className={`pointer-events-none absolute inset-0 opacity-0 transition duration-300 group-hover:opacity-100 ${role.fill}`} />
                   {/* Brillo diagonal del vidrio. */}
-                  <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.65)_0%,rgba(255,255,255,0)_45%)]" />
-                  <Icon name={role.icon} className="relative h-8 w-8" />
-                  {/* El título toma el color del perfil (hereda el `text-*` de la tarjeta). */}
-                  <span className="relative mt-3 block text-[1.35rem] font-bold leading-tight tracking-[-0.02em]">{role.label}</span>
-                  <span className="relative mt-1 flex items-end justify-between gap-3">
-                    <span className="text-[14px] leading-5 text-slate-600">{role.hint}</span>
-                    <Icon name="arrow" className="h-5 w-5 shrink-0 transition group-hover:translate-x-1" />
+                  <span aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.65)_0%,rgba(255,255,255,0)_45%)] transition duration-300 group-hover:opacity-25" />
+                  {/* El color va en un <span>: globals.css fija `a { color: inherit }`. */}
+                  <span className={`relative flex flex-1 flex-col px-5 py-4 transition-colors duration-300 group-hover:text-white ${role.color}`}>
+                    <Icon name={role.icon} className="h-8 w-8" />
+                    <span className="mt-3 block text-[1.35rem] font-bold leading-tight tracking-[-0.02em]">{role.label}</span>
+                    <span className="mt-1 flex items-end justify-between gap-3">
+                      <span className="text-[14px] leading-5 text-slate-600 transition-colors duration-300 group-hover:text-white/90">{role.hint}</span>
+                      <Icon name="arrow" className="h-5 w-5 shrink-0 transition group-hover:translate-x-1" />
+                    </span>
                   </span>
                 </Link>
               ))}

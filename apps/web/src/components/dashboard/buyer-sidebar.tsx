@@ -2,10 +2,8 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { clearSession, getPrimaryCompanyName, getUserFullName, type WebSession } from '@/lib/session';
-import { ASSISTANT_OPEN_EVENT } from './assistant-fab';
+import { usePathname } from 'next/navigation';
+import { type ReactNode } from 'react';
 
 type IconName = 'plus' | 'home' | 'panel' | 'users' | 'file' | 'tag' | 'box' | 'chat' | 'heart' | 'bell' | 'gear' | 'logout' | 'dots';
 
@@ -98,44 +96,8 @@ type NavGroup = { title?: string; items: NavItem[] };
  * inferior). Entre 1024 y 1280 px queda como una columna de íconos para no
  * quitarle ancho al contenido; desde 1280 px muestra los textos.
  */
-export default function BuyerSidebar({
-  session,
-  notificationCount = 0,
-}: {
-  session: WebSession | null;
-  notificationCount?: number;
-}) {
+export default function BuyerSidebar({ notificationCount = 0 }: { notificationCount?: number }) {
   const pathname = usePathname() ?? '';
-  const router = useRouter();
-  const [isAccountOpen, setIsAccountOpen] = useState(false);
-  const accountRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!isAccountOpen) return;
-    function handlePointerDown(event: MouseEvent) {
-      if (!accountRef.current?.contains(event.target as Node)) setIsAccountOpen(false);
-    }
-    function handleEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setIsAccountOpen(false);
-    }
-    document.addEventListener('mousedown', handlePointerDown);
-    document.addEventListener('keydown', handleEscape);
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown);
-      document.removeEventListener('keydown', handleEscape);
-    };
-  }, [isAccountOpen]);
-
-  const profileName = session ? getUserFullName(session.user) : 'Tu cuenta';
-  const profileCompany = session ? getPrimaryCompanyName(session.user) : 'Tu empresa';
-  const profileInitials =
-    profileName
-      .split(' ')
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join('') || '·';
-
   const groups: NavGroup[] = [
     {
       items: [
@@ -173,12 +135,6 @@ export default function BuyerSidebar({
     // "Solicitar cotización" tiene su propio botón: no marca "Solicitudes".
     if (pathname.startsWith('/dashboard/comprador/solicitudes/nueva')) return false;
     return pathname === item.href || pathname.startsWith(`${item.href}/`);
-  }
-
-  function handleLogout() {
-    clearSession();
-    setIsAccountOpen(false);
-    router.push('/acceso');
   }
 
   const isNewRequest = pathname.startsWith('/dashboard/comprador/solicitudes/nueva');
@@ -249,68 +205,6 @@ export default function BuyerSidebar({
         ))}
       </nav>
 
-      <button
-        className="relative mt-3 hidden overflow-hidden rounded-2xl bg-[linear-gradient(140deg,#0b1f66,#1f5bff)] p-3.5 text-left text-white transition hover:brightness-110 xl:block"
-        onClick={() => window.dispatchEvent(new Event(ASSISTANT_OPEN_EVENT))}
-        type="button"
-      >
-        <Image
-          alt=""
-          className="pointer-events-none absolute -bottom-2 -right-1.5 h-[70px] w-[70px] object-contain"
-          height={70}
-          src="/botatar.png?v=2"
-          unoptimized
-          width={70}
-        />
-        <p className="text-[13.5px] font-bold">¿Te ayudo a cotizar?</p>
-        <p className="mt-0.5 max-w-[130px] text-[12px] leading-snug text-[#c4d4ff]">ATARIA arma tu solicitud en un minuto.</p>
-        <span className="mt-2.5 inline-block rounded-lg bg-white px-2.5 py-1.5 text-[12px] font-bold text-[#1238d6]">Hablar con ATARIA</span>
-      </button>
-
-      <div className="relative mt-3" ref={accountRef}>
-        <button
-          aria-expanded={isAccountOpen}
-          aria-label="Tu cuenta"
-          className="flex w-full items-center justify-center gap-2.5 rounded-xl border border-slate-300 p-1.5 text-left transition hover:bg-slate-50 xl:justify-start xl:p-2"
-          onClick={() => setIsAccountOpen((current) => !current)}
-          title={`${profileName} · ${profileCompany}`}
-          type="button"
-        >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eef3ff] text-[12.5px] font-extrabold text-[#1238d6]">
-            {profileInitials}
-          </span>
-          <span className="hidden min-w-0 flex-1 xl:block">
-            <span className="block truncate text-[13.5px] font-semibold text-slate-950">{profileName}</span>
-            <span className="block truncate text-[12px] text-slate-500">{profileCompany}</span>
-          </span>
-          <Icon className="hidden h-[18px] w-[18px] text-slate-400 xl:block" name="dots" />
-        </button>
-
-        {isAccountOpen ? (
-          <div className="absolute bottom-[calc(100%+8px)] left-0 z-50 w-[240px] rounded-2xl border border-slate-300 bg-white p-2 shadow-[0_24px_60px_rgba(15,23,42,0.16)]">
-            <div className="rounded-xl bg-[#eef1f7] px-3 py-2.5">
-              <p className="truncate text-sm font-semibold text-slate-950">{profileName}</p>
-              <p className="mt-0.5 truncate text-[11.5px] text-slate-500">{profileCompany}</p>
-            </div>
-            <Link
-              className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
-              href="/dashboard/comprador/configuracion"
-              onClick={() => setIsAccountOpen(false)}
-            >
-              <Icon className="h-4 w-4 text-slate-400" name="gear" />
-              Configuración
-            </Link>
-            <button
-              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-rose-600 transition hover:bg-rose-50"
-              onClick={handleLogout}
-              type="button"
-            >
-              <Icon className="h-4 w-4 text-rose-500" name="logout" />
-              Cerrar sesión
-            </button>
-          </div>
-        ) : null}
-      </div>
     </aside>
   );
 }

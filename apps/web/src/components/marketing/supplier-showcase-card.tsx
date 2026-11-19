@@ -108,7 +108,11 @@ function VerifiedBadge({ className = 'h-5 w-5' }: { className?: string }) {
   );
 }
 
-export default function SupplierShowcaseCard({ supplier }: { supplier: SupplierDirectoryRecord }) {
+/**
+ * `compact`: versión chica en una fila (foto a la izquierda), para listas al
+ * costado de otro contenido como "Proveedores destacados".
+ */
+export default function SupplierShowcaseCard({ supplier, compact = false }: { supplier: SupplierDirectoryRecord; compact?: boolean }) {
   const logoUrl = supplierLogoUrl(supplier);
   const { categoryName } = useRegion();
   // Primero los productos terminados; las materias primas (polímeros) van al final.
@@ -119,6 +123,50 @@ export default function SupplierShowcaseCard({ supplier }: { supplier: SupplierD
   const tags = products.slice(0, 2);
   if (supplier.genericCode) {
     tags.push(supplier.genericCode);
+  }
+
+  if (compact) {
+    return (
+      <Link
+        className="group flex w-full min-w-0 items-center gap-4 overflow-hidden rounded-[16px] border border-[#e3e8f4] bg-white p-2.5 pr-4 shadow-[0_2px_6px_rgba(15,23,42,0.04)] transition duration-300 hover:-translate-y-0.5 hover:border-[#c9d5f5] hover:shadow-[0_14px_32px_rgba(24,71,255,0.10)]"
+        href={`/productos/${supplier.slug}`}
+      >
+        <div className="relative h-[84px] w-[104px] shrink-0 overflow-hidden rounded-[12px] sm:w-[124px]">
+          <Image alt="" className="object-cover transition duration-700 group-hover:scale-105" fill sizes="124px" src={coverFor(supplier)} />
+          <span className="absolute bottom-1.5 left-1.5 flex h-9 w-9 items-center justify-center rounded-[10px] border border-white bg-white shadow-[0_4px_12px_rgba(15,23,42,0.15)]">
+            {logoUrl ? (
+              <Image alt={`Logo de ${supplier.name}`} className="h-7 w-7 object-contain" height={28} src={logoUrl} width={28} />
+            ) : (
+              <CompanyLogo className="h-7 w-7" logoUrl={null} name={supplier.name} rounded="rounded-[8px]" textClassName="text-[10px]" tone="bg-[#eef3ff] text-[#1f5bff]" />
+            )}
+          </span>
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="flex min-w-0 items-center gap-1.5 text-[16px] font-bold leading-tight tracking-[-0.01em] text-[#0b1533]">
+            <span className="truncate">{supplier.name}</span>
+            {supplier.isVerified ? <VerifiedBadge className="h-4 w-4 shrink-0" /> : null}
+          </p>
+          {subtitle ? <p className="mt-0.5 truncate text-[13px] text-slate-500">{subtitle}</p> : null}
+          {tags.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {tags.slice(0, 2).map((tag) => (
+                <span key={tag} className="inline-flex items-center gap-1 rounded-full border border-[#e3e8f4] px-2 py-0.5 text-[11.5px] font-medium text-[#0b1533]">
+                  <span className="text-[#1f3fd6]">
+                    <TagGlyph name={iconFor(tag)} />
+                  </span>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#eef3ff] text-[#1f5bff] transition group-hover:translate-x-0.5 group-hover:bg-[#1f5bff] group-hover:text-white">
+          <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
+            <path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+          </svg>
+        </span>
+      </Link>
+    );
   }
 
   return (

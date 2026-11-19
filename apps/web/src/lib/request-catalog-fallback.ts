@@ -83,7 +83,13 @@ function tipoTelaFields(options: string[] = ['Convencional', LAMINADA, 'Ventilad
   return fields;
 }
 
-const GRAMAJE: FieldInput = { key: 'gramaje', label: 'Gramaje', type: 'choices', options: ['60 g/m²', '70 g/m²', '80 g/m²', '90 g/m²', '100 g/m²', '120 g/m²'], required: true };
+// Campo de texto con desplegable: los gramajes habituales de la tela de rafia o
+// el que escriba la persona. Los pasos no son parejos, como en el mercado:
+// - bolsas y sacos livianos (50 a 90 g/m²): se piden de a 5;
+// - sacos pesados y uso industrial (90 a 180 g/m²): de a 10;
+// - cuerpo de big bags (180 a 220 g/m²): de a 20.
+const GRAMAJES = [50, 55, 60, 65, 70, 75, 80, 85, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 200, 220].map((value) => `${value} g/m²`);
+const GRAMAJE: FieldInput = { key: 'gramaje', label: 'Gramaje', type: 'input', options: GRAMAJES, placeholder: 'Escribí o elegí el gramaje', required: true };
 const CANTIDAD: FieldInput = { key: 'cantidad', label: 'Cantidad', type: 'quantity', required: true };
 
 function observaciones(placeholder: string): FieldInput {
