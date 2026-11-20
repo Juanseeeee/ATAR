@@ -84,6 +84,10 @@ enum ConversationContextType {
   PRODUCT
   REQUEST
   QUOTE
+  // Chat directo entre dos empresas proveedoras (o sus vendedores), sin
+  // solicitud de por medio. Quien lo inicia queda en buyerCompanyId ("lado A")
+  // y la otra empresa en supplierCompanyId ("lado B").
+  DIRECT
 }
 
 // Estado comercial de una solicitud dentro de una empresa proveedora.
@@ -889,4 +893,18 @@ model BillingSettings {
   defaultRuleId          String?
   paymentProviderDefault BillingPaymentMethod @default(MANUAL_TRANSFER)
   updatedAt              DateTime @updatedAt
+}
+
+// Anotaciones personales de un proveedor o vendedor sobre un cliente (CRM). Las
+// ve solo quien las escribió: ni el resto de su equipo ni el cliente.
+model CustomerNote {
+  id                String   @id @default(cuid())
+  supplierCompanyId String
+  buyerCompanyId    String
+  authorUserId      String
+  authorName        String
+  body              String
+  createdAt         DateTime @default(now())
+
+  @@index([supplierCompanyId, buyerCompanyId, createdAt])
 }

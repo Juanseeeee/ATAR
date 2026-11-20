@@ -404,3 +404,46 @@ export function useBuyerNotificationCount(accessToken?: string | null) {
 
   return count;
 }
+
+/**
+ * Mensajes sin leer del cliente (de los proveedores), para avisar en el menú
+ * lateral, la barra inferior y el inicio. Se actualiza al cambiar de pantalla
+ * (así baja al leerlos) y cada 30 segundos.
+ */
+export function useBuyerUnreadMessages(accessToken?: string | null, pathname?: string | null) {
+  const [count, setCount] = useState(0);
+
+  const refresh = useCallback(async () => {
+    if (!accessToken) {
+      return;
+    }
+    try {
+      const conversations = await atarApi.getConversations(undefined, accessToken);
+      setCount(
+        conversations
+          .filter((conversation) => conversation.contextType !== 'DIRECT')
+          .reduce((total, conversation) => total + conversation.unreadCount, 0),
+      );
+    } catch {
+      // Silencioso: el aviso simplemente no se actualiza.
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh, pathname]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => void refresh(), 30_000);
+    function handleRefresh() {
+      void refresh();
+    }
+    window.addEventListener(SUPPLIER_COUNTERS_REFRESH_EVENT, handleRefresh);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener(SUPPLIER_COUNTERS_REFRESH_EVENT, handleRefresh);
+    };
+  }, [refresh]);
+
+  return count;
+}

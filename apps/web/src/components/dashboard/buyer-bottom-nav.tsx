@@ -109,7 +109,7 @@ const DRAWER_ITEMS: { label: string; href: string; icon: IconName }[] = [
   { label: 'Configuración', href: '/dashboard/comprador/configuracion', icon: 'gear' },
 ];
 
-export default function BuyerBottomNav({ notificationCount = 0 }: { notificationCount?: number }) {
+export default function BuyerBottomNav({ notificationCount = 0, messageCount = 0 }: { notificationCount?: number; messageCount?: number }) {
   const pathname = usePathname();
   const router = useRouter();
   const { signOut } = useAuth();
@@ -135,7 +135,7 @@ export default function BuyerBottomNav({ notificationCount = 0 }: { notification
   const tabs: { label: string; href: string; icon: IconName; badge?: number }[] = [
     { label: 'Inicio', href: '/dashboard/comprador', icon: 'home' },
     { label: 'Panel', href: '/dashboard/comprador/panel', icon: 'panel' },
-    { label: 'Mensajes', href: '/dashboard/comprador/mensajes', icon: 'chat' },
+    { label: 'Mensajes', href: '/dashboard/comprador/mensajes', icon: 'chat', badge: messageCount },
     { label: 'Notificaciones', href: '/dashboard/comprador/notificaciones', icon: 'bell', badge: notificationCount },
   ];
 

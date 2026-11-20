@@ -401,6 +401,15 @@ export type CustomerDetailRecord = {
   }>;
 };
 
+/** Anotación interna del equipo proveedor sobre un cliente. */
+export type CustomerNoteRecord = {
+  id: string;
+  body: string;
+  authorUserId: string;
+  authorName: string;
+  createdAt: string;
+};
+
 /** Señal comercial: recompra, seguimiento o postventa. */
 export type CommercialOpportunityRecord = {
   type: 'REPURCHASE' | 'FOLLOW_UP' | 'AFTER_SALES';
@@ -520,7 +529,7 @@ export type UpdateFulfillmentPayload = {
     | 'MARK_DELIVERED';
 };
 
-export type ConversationContextType = 'PRODUCT' | 'REQUEST' | 'QUOTE';
+export type ConversationContextType = 'PRODUCT' | 'REQUEST' | 'QUOTE' | 'DIRECT';
 export type NotificationType =
   | 'QUOTE_SUBMITTED'
   | 'QUOTE_UPDATED'
@@ -556,6 +565,19 @@ export type ConversationMessageRecord = {
   supplierReadAt?: string | null;
 };
 
+/** Otra empresa proveedora con la que se puede abrir un chat directo. */
+export type SupplierContactRecord = {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  city: string | null;
+  country: string;
+  supplierRole: SupplierRole | null;
+  isVerified: boolean;
+  /** Nombres de los vendedores de esa empresa. */
+  sellers: string[];
+};
+
 export type ConversationRecord = {
   id: string;
   contextType: ConversationContextType;
@@ -565,11 +587,15 @@ export type ConversationRecord = {
   buyerCompanyId: string;
   buyerCompanyName: string;
   buyerCompanyLogoUrl: string | null;
+  buyerCompanyCity?: string | null;
+  buyerCompanyCountry?: string | null;
   supplierCompanyId: string;
   supplierCompanyName: string;
   supplierCompanyLogoUrl: string | null;
   lastMessageAt?: string | null;
   unreadCount: number;
+  /** De qué lado está quien consulta. En un chat directo entre proveedoras, BUYER = quien lo inició. */
+  viewerRole?: MembershipRole | null;
   request?: {
     id: string;
     title: string;
@@ -1320,6 +1346,18 @@ export const atarApi = {
   getSupplierCustomerDetail(buyerCompanyId: string, token: string) {
     return request<CustomerDetailRecord>(`/companies/customers/${buyerCompanyId}`, undefined, token);
   },
+  getCustomerNotes(buyerCompanyId: string, token: string) {
+    return request<CustomerNoteRecord[]>(`/companies/customers/${buyerCompanyId}/notes`, undefined, token);
+  },
+  addCustomerNote(buyerCompanyId: string, body: string, token: string) {
+    return request<CustomerNoteRecord>(`/companies/customers/${buyerCompanyId}/notes`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }, token);
+  },
+  deleteCustomerNote(buyerCompanyId: string, noteId: string, token: string) {
+    return request<{ deleted: boolean }>(`/companies/customers/${buyerCompanyId}/notes/${noteId}`, { method: 'DELETE' }, token);
+  },
   getCommercialOpportunities(token: string) {
     return request<CommercialOpportunityRecord[]>('/companies/opportunities', undefined, token);
   },
@@ -1412,6 +1450,15 @@ export const atarApi = {
       undefined,
       token,
     );
+  },
+  getConversationContacts(token: string) {
+    return request<SupplierContactRecord[]>('/conversations/contacts', undefined, token);
+  },
+  getOrCreateDirectConversation(companyId: string, token: string) {
+    return request<ConversationRecord>('/conversations/direct', {
+      method: 'POST',
+      body: JSON.stringify({ companyId }),
+    }, token);
   },
   getOrCreateProductConversation(payload: CreateProductConversationPayload, token: string) {
     return request<ConversationRecord>('/conversations/product', {

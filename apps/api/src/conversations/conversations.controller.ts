@@ -4,6 +4,7 @@ import { ActiveCompanyId } from '../auth/decorators/active-company.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ConversationsService } from './conversations.service';
+import { CreateDirectConversationDto } from './dto/create-direct-conversation.dto';
 import { CreateProductConversationDto } from './dto/create-product-conversation.dto';
 import { ListConversationsQueryDto } from './dto/list-conversations-query.dto';
 import { ListMessagesQueryDto } from './dto/list-messages-query.dto';
@@ -21,6 +22,22 @@ export class ConversationsController {
     @ActiveCompanyId() activeCompanyId?: string,
   ) {
     return this.conversationsService.list(user, query, activeCompanyId);
+  }
+
+  /** Otras empresas proveedoras con las que se puede abrir un chat directo. */
+  @Get('contacts')
+  listContacts(@CurrentUser() user: AuthUser, @ActiveCompanyId() activeCompanyId?: string) {
+    return this.conversationsService.listContacts(user, activeCompanyId);
+  }
+
+  /** Abre (o retoma) el chat directo con otra empresa proveedora. */
+  @Post('direct')
+  getOrCreateDirect(
+    @CurrentUser() user: AuthUser,
+    @Body() dto: CreateDirectConversationDto,
+    @ActiveCompanyId() activeCompanyId?: string,
+  ) {
+    return this.conversationsService.getOrCreateDirect(user, dto.companyId, activeCompanyId);
   }
 
   @Post('product')

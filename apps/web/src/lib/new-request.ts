@@ -222,7 +222,7 @@ const CATEGORY_ICONS: Record<string, string> = {
   'hilo multifilamento de pp': '/categorias/ico-hilos.png',
   'hilo retorcido y mallas': '/categorias/ico-hilos.png',
   maquinarias: '/categorias/ico-maquinaria.png',
-  'a medida': '/amedida.png',
+  'a medida': '/categorias/ico-amedida.png',
 };
 
 /** Ícono del rubro (los mismos del inicio). */

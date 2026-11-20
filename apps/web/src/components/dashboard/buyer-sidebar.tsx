@@ -96,7 +96,7 @@ type NavGroup = { title?: string; items: NavItem[] };
  * inferior). Entre 1024 y 1280 px queda como una columna de íconos para no
  * quitarle ancho al contenido; desde 1280 px muestra los textos.
  */
-export default function BuyerSidebar({ notificationCount = 0 }: { notificationCount?: number }) {
+export default function BuyerSidebar({ notificationCount = 0, messageCount = 0 }: { notificationCount?: number; messageCount?: number }) {
   const pathname = usePathname() ?? '';
   const groups: NavGroup[] = [
     {
@@ -112,7 +112,7 @@ export default function BuyerSidebar({ notificationCount = 0 }: { notificationCo
         { label: 'Solicitudes', href: '/dashboard/comprador/solicitudes', icon: 'file', tour: 'nav-solicitudes' },
         { label: 'Cotizaciones', href: '/dashboard/comprador/cotizaciones', icon: 'tag', tour: 'nav-cotizaciones' },
         { label: 'Pedidos', href: '/dashboard/comprador/pedidos', icon: 'box', tour: 'nav-pedidos' },
-        { label: 'Mensajes', href: '/dashboard/comprador/mensajes', icon: 'chat', tour: 'nav-mensajes' },
+        { label: 'Mensajes', href: '/dashboard/comprador/mensajes', icon: 'chat', tour: 'nav-mensajes', badge: messageCount },
         { label: 'Favoritos', href: '/dashboard/comprador/favoritos', icon: 'heart', tour: 'nav-favoritos' },
       ],
     },

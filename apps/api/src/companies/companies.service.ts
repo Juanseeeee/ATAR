@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import {
   Prisma,
   MembershipRole,
@@ -626,6 +626,55 @@ export class CompaniesService {
           : null,
       })),
     };
+  }
+
+  /**
+   * Anotaciones personales sobre un cliente, las más nuevas primero. Son
+   * privadas: cada persona ve solo las que escribió ella.
+   */
+  async customerNotes(user: AuthUser, buyerCompanyId: string, activeCompanyId?: string) {
+    const workspace = resolveSupplierWorkspace(user, activeCompanyId);
+    return this.prisma.customerNote.findMany({
+      where: { supplierCompanyId: workspace.companyId, buyerCompanyId, authorUserId: user.userId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+  }
+
+  async addCustomerNote(user: AuthUser, buyerCompanyId: string, body: string, activeCompanyId?: string) {
+    const workspace = resolveSupplierWorkspace(user, activeCompanyId);
+    const text = body.trim();
+    if (!text) {
+      throw new BadRequestException('La anotación está vacía.');
+    }
+    const buyer = await this.prisma.company.findUnique({ where: { id: buyerCompanyId }, select: { id: true } });
+    if (!buyer) {
+      throw new NotFoundException('Cliente no encontrado.');
+    }
+    const author = await this.prisma.user.findUnique({
+      where: { id: user.userId },
+      select: { firstName: true, lastName: true },
+    });
+    return this.prisma.customerNote.create({
+      data: {
+        supplierCompanyId: workspace.companyId,
+        buyerCompanyId,
+        authorUserId: user.userId,
+        authorName: author ? `${author.firstName} ${author.lastName}`.trim() : 'Equipo',
+        body: text,
+      },
+    });
+  }
+
+  /** Borra una anotación: solo quien la escribió (las de otros ni se ven). */
+  async deleteCustomerNote(user: AuthUser, noteId: string, activeCompanyId?: string) {
+    const workspace = resolveSupplierWorkspace(user, activeCompanyId);
+    const note = await this.prisma.customerNote.findUnique({ where: { id: noteId } });
+    if (!note || note.supplierCompanyId !== workspace.companyId || note.authorUserId !== user.userId) {
+      throw new NotFoundException('Anotación no encontrada.');
+    }
+    await this.prisma.customerNote.delete({ where: { id: noteId } });
+    return { deleted: true };
   }
 
   /**

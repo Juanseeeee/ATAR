@@ -1,53 +1,42 @@
 'use client';
 
-import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
-import CompanyLogo from '@/components/dashboard/company-logo';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import ConversationListItem from '@/components/chat/conversation-list-item';
 import ConversationPanel from '@/components/chat/conversation-panel';
-import { atarApi, type ConversationRecord } from '@/lib/atar-api';
+import SupplierMiniCard from '@/components/chat/supplier-mini-card';
+import { atarApi, type ConversationRecord, type SupplierDirectoryRecord } from '@/lib/atar-api';
 import { LoadingState } from '@/components/ui/spinner';
 import { useBuyerDashboardData } from '@/lib/dashboard-hooks';
 
-function formatRelative(value: string | null | undefined) {
-  if (!value) {
-    return '';
-  }
-  const diff = Date.now() - new Date(value).getTime();
-  const hours = Math.max(1, Math.round(diff / (1000 * 60 * 60)));
-  if (hours < 24) {
-    return `${hours} h`;
-  }
-  return `${Math.round(hours / 24)} d`;
-}
-
-function getContextLabel(contextType: ConversationRecord['contextType']) {
-  if (contextType === 'QUOTE') {
-    return 'Cotización';
-  }
-  if (contextType === 'REQUEST') {
-    return 'Solicitud';
-  }
-  return 'Producto';
-}
-
-function getInitials(value: string | null | undefined) {
-  const cleaned = (value ?? '').replace(/\bS\.?\s*A\.?\b/gi, '').trim();
-  const words = cleaned.split(/\s+/).filter(Boolean);
-  const raw = words.length > 1 ? words.slice(0, 2).map((word) => word[0]).join('') : cleaned.slice(0, 2);
-  return raw.toUpperCase() || 'AT';
-}
-
 export default function BuyerMessagesPage() {
+  return (
+    <Suspense fallback={null}>
+      <BuyerMessagesWithParams />
+    </Suspense>
+  );
+}
+
+function BuyerMessagesWithParams() {
+  // ?c= abre directamente una conversación (desde una notificación de mensaje).
+  const target = useSearchParams()?.get('c') ?? null;
+  return <BuyerMessagesContent key={target ?? 'todas'} initialConversationId={target} />;
+}
+
+function BuyerMessagesContent({ initialConversationId }: { initialConversationId: string | null }) {
   const { session, loading: dashboardLoading, error: dashboardError } = useBuyerDashboardData();
   const [conversations, setConversations] = useState<ConversationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  // Directorio de proveedores, para la ficha del costado.
+  const [suppliers, setSuppliers] = useState<SupplierDirectoryRecord[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'unread'>('all');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Conversación elegida a mano (o la del enlace ?c=).
+  const [pickedId, setSelectedId] = useState<string | null>(initialConversationId);
   // En mobile el chat funciona como Instagram: se ve la lista y, al tocar una
   // conversación, se abre a pantalla completa. En desktop conviven los 2 paneles.
-  const [mobileChatOpen, setMobileChatOpen] = useState(false);
+  const [mobileChatOpen, setMobileChatOpen] = useState(Boolean(initialConversationId));
 
   useEffect(() => {
     if (!session?.accessToken) {
@@ -62,7 +51,8 @@ export default function BuyerMessagesPage() {
         setError(null);
         const items = await atarApi.getConversations(undefined, accessToken);
         if (!cancelled) {
-          setConversations(items);
+          // Los chats directos son entre proveedoras: van en la bandeja de proveedor.
+          setConversations(items.filter((item) => item.contextType !== 'DIRECT'));
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -76,6 +66,10 @@ export default function BuyerMessagesPage() {
     }
 
     void loadConversations();
+    atarApi
+      .getSuppliers(accessToken)
+      .then((list) => !cancelled && setSuppliers(list))
+      .catch(() => undefined);
     return () => {
       cancelled = true;
     };
@@ -86,6 +80,8 @@ export default function BuyerMessagesPage() {
   const filteredConversations = useMemo(() => {
     const query = search.trim().toLowerCase();
     return [...conversations]
+      // Las conversaciones abiertas sin ningún mensaje no se listan (salvo la elegida).
+      .filter((conversation) => Boolean(conversation.lastMessage) || conversation.id === pickedId)
       .filter((conversation) => {
         if (activeTab === 'unread' && conversation.unreadCount === 0) {
           return false;
@@ -103,32 +99,14 @@ export default function BuyerMessagesPage() {
         const rightTime = new Date(right.lastMessageAt ?? right.lastMessage?.createdAt ?? 0).getTime();
         return rightTime - leftTime;
       });
-  }, [conversations, search, activeTab]);
+  }, [conversations, search, activeTab, pickedId]);
 
-  // Preseleccion por deep-link (?c=) al abrir desde una notificacion de mensaje.
-  useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    const target = new URLSearchParams(window.location.search).get('c');
-    if (target) {
-      setSelectedId(target);
-      // Si venís desde una notificación, abrí la conversación directo en mobile.
-      setMobileChatOpen(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (selectedId && conversations.some((conversation) => conversation.id === selectedId)) {
-      return;
-    }
-    // Mientras carga, respeta una posible conversación deep-linked que todavía
-    // no llegó en la lista.
-    if (loading) {
-      return;
-    }
-    setSelectedId(filteredConversations[0]?.id ?? null);
-  }, [filteredConversations, conversations, selectedId, loading]);
+  // La elegida si sigue en la lista (o si todavía está cargando, para no perder
+  // la del enlace); si no, la primera de la lista.
+  const selectedId =
+    pickedId && (loading || conversations.some((conversation) => conversation.id === pickedId))
+      ? pickedId
+      : (filteredConversations[0]?.id ?? null);
 
   const activeConversation = conversations.find((conversation) => conversation.id === selectedId) ?? null;
 
@@ -153,7 +131,7 @@ export default function BuyerMessagesPage() {
         </div>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 gap-0 overflow-hidden border-t border-slate-300 bg-white xl:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="grid min-h-0 flex-1 gap-0 overflow-hidden border-t border-slate-300 bg-white xl:grid-cols-[320px_minmax(0,1fr)_290px] 2xl:grid-cols-[340px_minmax(0,1fr)_320px]">
         <section data-tour="messages-list" className={`min-h-0 flex-col border-b border-slate-300 bg-white p-4 xl:flex xl:border-b-0 xl:border-r ${mobileChatOpen ? 'hidden' : 'flex'}`}>
           <div className="flex items-center gap-3 rounded-xl border border-slate-300 bg-white px-3 py-2.5">
             <svg aria-hidden="true" className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24">
@@ -170,7 +148,7 @@ export default function BuyerMessagesPage() {
 
           <div className="mt-4 flex items-center gap-6 border-b border-slate-300 pb-3 text-xs font-semibold">
             {[
-              { key: 'all' as const, label: 'Todas', count: conversations.length },
+              { key: 'all' as const, label: 'Todas', count: conversations.filter((item) => item.lastMessage).length },
               { key: 'unread' as const, label: 'No leídos', count: unreadTotal },
             ].map((tab) => {
               const isActive = activeTab === tab.key;
@@ -191,7 +169,7 @@ export default function BuyerMessagesPage() {
             })}
           </div>
 
-          <div className="mt-2 min-h-0 flex-1 space-y-2 overflow-y-auto">
+          <div className="mt-2 min-h-0 flex-1 space-y-0.5 overflow-y-auto">
             {dashboardLoading || loading ? (
               <div className="rounded-2xl bg-[#eef1f7] px-4 py-8"><LoadingState label="Cargando conversaciones..." /></div>
             ) : filteredConversations.length === 0 ? (
@@ -199,51 +177,19 @@ export default function BuyerMessagesPage() {
                 Todavía no hay conversaciones.
               </div>
             ) : (
-              filteredConversations.map((conversation) => {
-                const isActive = activeConversation?.id === conversation.id;
-                return (
-                  <button
-                    key={conversation.id}
-                    className={`flex w-full items-start gap-3 rounded-2xl border px-3 py-3 text-left transition ${
-                      isActive ? 'border-indigo-400 bg-indigo-100 shadow-sm' : 'border-slate-300 bg-white hover:border-indigo-300 hover:bg-[#eef1f7]'
-                    }`}
-                    onClick={() => {
-                      setSelectedId(conversation.id);
-                      setMobileChatOpen(true);
-                    }}
-                    type="button"
-                  >
-                    <CompanyLogo
-                      className="h-11 w-11"
-                      logoUrl={conversation.supplierCompanyLogoUrl}
-                      name={conversation.supplierCompanyName}
-                      rounded="rounded-2xl"
-                      tone="border border-slate-300 bg-white text-slate-950"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="truncate text-sm font-semibold text-slate-950">{conversation.supplierCompanyName}</p>
-                        <span className="shrink-0 text-[11px] text-slate-400">
-                          {formatRelative(conversation.lastMessageAt ?? conversation.lastMessage?.createdAt)}
-                        </span>
-                      </div>
-                      <p className="mt-1 truncate text-xs text-slate-500">
-                        {conversation.lastMessage?.body ?? 'Sin mensajes recientes.'}
-                      </p>
-                      <div className="mt-2 flex items-center justify-between gap-2">
-                        <span className="truncate rounded-full bg-indigo-100 px-2 py-1 text-[10px] font-semibold text-indigo-600">
-                          {getContextLabel(conversation.contextType)}
-                        </span>
-                        {conversation.unreadCount > 0 ? (
-                          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-indigo-600 px-1.5 text-[10px] font-semibold text-white">
-                            {conversation.unreadCount}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })
+              filteredConversations.map((conversation) => (
+                <ConversationListItem
+                  key={conversation.id}
+                  active={activeConversation?.id === conversation.id}
+                  conversation={conversation}
+                  logoUrl={conversation.supplierCompanyLogoUrl}
+                  name={conversation.supplierCompanyName}
+                  onSelect={() => {
+                    setSelectedId(conversation.id);
+                    setMobileChatOpen(true);
+                  }}
+                />
+              ))
             )}
           </div>
         </section>
@@ -251,19 +197,6 @@ export default function BuyerMessagesPage() {
         <section data-tour="messages-chat" className={`min-h-0 flex-col overflow-hidden bg-white xl:flex ${mobileChatOpen ? 'flex' : 'hidden'}`}>
           {selectedId ? (
             <>
-              {detailLink ? (
-                <div className="hidden shrink-0 items-center justify-end border-b border-slate-300 bg-white px-4 py-2 xl:flex">
-                  <Link
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 transition hover:text-indigo-700"
-                    href={detailLink.href}
-                  >
-                    {detailLink.label}
-                    <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
-                    </svg>
-                  </Link>
-                </div>
-              ) : null}
               <div className="min-h-0 flex-1">
                 <ConversationPanel
                   conversationId={selectedId}
@@ -281,6 +214,22 @@ export default function BuyerMessagesPage() {
             </div>
           )}
         </section>
+
+        {/* Ficha del proveedor con el que se está hablando (solo en escritorio ancho). */}
+        <div className="hidden min-h-0 xl:block">
+          {activeConversation ? (
+            <SupplierMiniCard
+              context={
+                detailLink
+                  ? { label: detailLink.label.replace(/^Ver /, ''), title: activeConversation.contextTitle, href: detailLink.href }
+                  : null
+              }
+              fallbackLogoUrl={activeConversation.supplierCompanyLogoUrl}
+              fallbackName={activeConversation.supplierCompanyName}
+              supplier={suppliers.find((item) => item.id === activeConversation.supplierCompanyId) ?? null}
+            />
+          ) : null}
+        </div>
       </div>
     </div>
   );

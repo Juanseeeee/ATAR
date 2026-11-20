@@ -9,12 +9,13 @@ import BuyerMarketplaceHeader from '@/components/dashboard/buyer-marketplace-hea
 import BuyerNewRequestCta from '@/components/dashboard/buyer-new-request-cta';
 import BuyerSidebar from '@/components/dashboard/buyer-sidebar';
 import TourProvider from '@/components/tour/tour-provider';
-import { useBuyerNotificationCount } from '@/lib/dashboard-hooks';
+import { useBuyerNotificationCount, useBuyerUnreadMessages } from '@/lib/dashboard-hooks';
 
 export default function BuyerDashboardLayout({ children }: { children: React.ReactNode }) {
   const { session } = useAuth();
   const notificationCount = useBuyerNotificationCount(session?.accessToken);
   const pathname = usePathname();
+  const messageCount = useBuyerUnreadMessages(session?.accessToken, pathname);
   const isBuyerHome = pathname === '/dashboard/comprador';
   const isBuyerPanel = pathname?.startsWith('/dashboard/comprador/panel');
   const isBuyerMessages = pathname === '/dashboard/comprador/mensajes';
@@ -43,9 +44,9 @@ export default function BuyerDashboardLayout({ children }: { children: React.Rea
           isBuyerWizard ? 'bg-[linear-gradient(180deg,#f7f9ff_0%,#eef2fe_100%)]' : 'bg-[#e9edf5]'
         } ${isBuyerMessages ? 'h-[100dvh] overflow-hidden' : 'min-h-screen'}`}
       >
-        <BuyerSidebar notificationCount={notificationCount} />
+        <BuyerSidebar messageCount={messageCount} notificationCount={notificationCount} />
         <div className={`flex min-w-0 flex-1 flex-col ${isBuyerMessages ? 'h-[100dvh] overflow-hidden' : ''}`}>
-          <BuyerMarketplaceHeader notificationCount={notificationCount} session={session} />
+          <BuyerMarketplaceHeader messageCount={messageCount} notificationCount={notificationCount} session={session} />
           {isFullBleed ? (
             <div className={showBottomNav ? 'pb-[76px] lg:pb-0' : undefined}>{children}</div>
           ) : isBuyerMessages ? (
@@ -64,7 +65,7 @@ export default function BuyerDashboardLayout({ children }: { children: React.Rea
             </main>
           )}
         </div>
-        {showBottomNav ? <BuyerBottomNav notificationCount={notificationCount} /> : null}
+        {showBottomNav ? <BuyerBottomNav messageCount={messageCount} notificationCount={notificationCount} /> : null}
         {/* En Configuración taparía los interruptores de preferencias. */}
         {!isBuyerWizard && !isBuyerMessages && !pathname?.startsWith('/dashboard/comprador/configuracion') ? <BuyerNewRequestCta /> : null}
         {!isBuyerWizard ? <AssistantFab /> : null}
