@@ -80,25 +80,25 @@ export const TOURS: Tour[] = [
         route: B,
         target: ['home-shortcuts'],
         title: 'Tus accesos',
-        body: 'Desde acá entrás a tus solicitudes, a las cotizaciones que recibiste, a tus pedidos y a los proveedores.',
+        body: 'Pedí una cotización o un producto a medida, y entrá a tus mensajes, cotizaciones, solicitudes y pedidos. El número rojo marca lo que tenés sin ver.',
       },
       {
         route: B,
         target: ['home-categories'],
-        title: 'Categorías',
-        body: 'Si ya sabés qué rubro buscás, elegilo acá y empezás la cotización con ese producto cargado.',
-      },
-      {
-        route: B,
-        target: ['home-suppliers'],
-        title: 'Proveedores recomendados',
-        body: 'Empresas registradas en ATAR, con las verificadas primero. Podés ver su perfil o pedirles una cotización directamente.',
+        title: 'Productos destacados',
+        body: 'Si ya sabés qué producto buscás, tocalo y empezás la cotización con ese producto cargado.',
       },
       {
         route: B,
         target: ['home-activity'],
         title: 'Retomá donde dejaste',
         body: 'Tus últimas solicitudes con su estado. Si alguna ya tiene respuestas, desde acá vas directo a compararlas.',
+      },
+      {
+        route: B,
+        target: ['home-repeat'],
+        title: 'Repetir un pedido',
+        body: 'Volvé a pedir algo que ya cotizaste: se carga igual y cambiás solo lo que necesites.',
       },
       {
         route: B,
@@ -153,8 +153,8 @@ export const TOURS: Tour[] = [
       {
         route: B,
         target: ['home-categories'],
-        title: 'Los rubros principales',
-        body: 'Cada categoría abre la solicitud con ese producto ya elegido. "Ver todo el catálogo" muestra el resto.',
+        title: 'Los productos principales',
+        body: 'Cada producto abre la solicitud con ese producto ya elegido. "Ver todo el catálogo" muestra el resto.',
       },
       {
         route: `${B}/solicitudes/nueva`,

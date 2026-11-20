@@ -58,6 +58,21 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 
+/** Separador de día del chat: "Hoy", "Ayer" o "12 de noviembre". */
+function formatDay(value: string) {
+  const date = new Date(value);
+  const today = new Date();
+  const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((startOf(today) - startOf(date)) / 86_400_000);
+  if (diffDays === 0) return 'Hoy';
+  if (diffDays === 1) return 'Ayer';
+  return new Intl.DateTimeFormat('es-AR', {
+    day: 'numeric',
+    month: 'long',
+    ...(date.getFullYear() !== today.getFullYear() ? { year: 'numeric' } : {}),
+  }).format(date);
+}
+
 function getInitials(value: string | null | undefined) {
   const cleaned = (value ?? '').replace(/\bS\.?\s*A\.?\b/gi, '').trim();
   const words = cleaned.split(/\s+/).filter(Boolean);
@@ -71,6 +86,12 @@ function resolveParticipantRole(
 ): Extract<MembershipRole, 'BUYER' | 'SUPPLIER'> | null {
   if (!session || !conversation) {
     return null;
+  }
+
+  // El servidor dice de qué lado está (necesario en los chats directos entre
+  // proveedoras, donde las dos empresas son proveedoras).
+  if (conversation.viewerRole === 'BUYER' || conversation.viewerRole === 'SUPPLIER') {
+    return conversation.viewerRole;
   }
 
   const buyerMatch = session.user.memberships.some(
@@ -96,8 +117,10 @@ function resolveParticipantRole(
 function getRolePath(
   session: WebSession | null,
   participantRole: Extract<MembershipRole, 'BUYER' | 'SUPPLIER'> | null,
+  isDirect = false,
 ) {
-  if (participantRole === 'SUPPLIER') {
+  // Un chat directo es siempre entre proveedoras.
+  if (isDirect || participantRole === 'SUPPLIER') {
     return 'proveedor';
   }
 
@@ -112,6 +135,10 @@ function getRolePath(
 }
 
 function getContextLabel(contextType: ConversationRecord['contextType']) {
+  if (contextType === 'DIRECT') {
+    return 'Chat directo';
+  }
+
   if (contextType === 'PRODUCT') {
     return 'Producto';
   }
@@ -124,6 +151,10 @@ function getContextLabel(contextType: ConversationRecord['contextType']) {
 }
 
 function getContextTone(contextType: ConversationRecord['contextType']) {
+  if (contextType === 'DIRECT') {
+    return 'indigo' as const;
+  }
+
   if (contextType === 'PRODUCT') {
     return 'sky' as const;
   }
@@ -379,7 +410,7 @@ export default function ConversationPanel({
   }, [conversation, typingState]);
 
   const rolePath = useMemo(
-    () => getRolePath(activeSession, participantRole),
+    () => getRolePath(activeSession, participantRole, conversation?.contextType === 'DIRECT'),
     [activeSession, participantRole],
   );
 
@@ -420,20 +451,24 @@ export default function ConversationPanel({
       return null;
     }
 
-    return rolePath === 'comprador'
+    // La otra empresa: si estoy del lado comprador (o soy quien inició un chat
+    // directo), es la proveedora; si no, la compradora.
+    return participantRole === 'BUYER' || (!participantRole && rolePath === 'comprador')
       ? conversation.supplierCompanyName
       : conversation.buyerCompanyName;
-  }, [conversation, rolePath]);
+  }, [conversation, participantRole, rolePath]);
 
   const counterpartLogo = useMemo(() => {
     if (!conversation) {
       return null;
     }
 
-    return rolePath === 'comprador'
+    // La otra empresa: si estoy del lado comprador (o soy quien inició un chat
+    // directo), es la proveedora; si no, la compradora.
+    return participantRole === 'BUYER' || (!participantRole && rolePath === 'comprador')
       ? conversation.supplierCompanyLogoUrl
       : conversation.buyerCompanyLogoUrl;
-  }, [conversation, rolePath]);
+  }, [conversation, participantRole, rolePath]);
 
   const messageCount = conversation?.messages?.length ?? 0;
   const attachmentCount =
@@ -625,9 +660,19 @@ export default function ConversationPanel({
                 </span>
               ) : null}
             </div>
-            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
-              <span className={`h-1.5 w-1.5 rounded-full ${liveConnected ? 'bg-emerald-500' : 'bg-amber-400'}`} />
-              {liveConnected ? 'En línea · tiempo real' : 'Reconectando...'}
+            <p className="mt-0.5 flex min-w-0 items-center gap-1.5 text-xs text-slate-500">
+              <span
+                className={`h-1.5 w-1.5 shrink-0 rounded-full ${liveConnected ? 'bg-emerald-500' : 'bg-amber-400'}`}
+                title={liveConnected ? 'Conectado en tiempo real' : 'Reconectando'}
+              />
+              {/* De qué se está hablando (producto, solicitud o cotización). */}
+              <span className="truncate">
+                {conversation?.contextType !== 'DIRECT' && conversation?.contextTitle
+                  ? conversation.contextTitle
+                  : liveConnected
+                    ? 'En línea'
+                    : 'Reconectando...'}
+              </span>
             </p>
           </div>
         </div>
@@ -642,13 +687,13 @@ export default function ConversationPanel({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col justify-end overflow-y-auto bg-white px-3 py-3 sm:bg-[linear-gradient(180deg,#f8f9fc_0%,#f3f5fb_100%)] sm:px-5 sm:py-4">
-        <div className="mx-auto w-full max-w-[880px] space-y-1.5 sm:space-y-4">
+        <div className="mx-auto w-full max-w-[880px]">
           {loading ? (
             <LoadingState label="Cargando conversación..." className="py-8" />
           ) : !conversation || (conversation.messages?.length ?? 0) === 0 ? (
             <p className="py-8 text-center text-sm text-slate-500">Todavía no hay mensajes. Escribí el primero 👇</p>
           ) : (
-            conversation.messages?.map((item) => {
+            conversation.messages?.map((item, index, all) => {
               const isOwn = participantRole ? item.senderRole === participantRole : item.senderRole === 'BUYER';
               const readAt =
                 participantRole === 'BUYER'
@@ -656,38 +701,73 @@ export default function ConversationPanel({
                   : participantRole === 'SUPPLIER'
                     ? item.buyerReadAt
                     : null;
+              const previous = all[index - 1];
+              const next = all[index + 1];
+              const newDay = !previous || formatDay(previous.createdAt) !== formatDay(item.createdAt);
+              // Mensajes seguidos del mismo lado (menos de 5 minutos) van juntos:
+              // menos espacio y el logo solo en el último.
+              const sameAs = (other?: typeof item) =>
+                Boolean(other) &&
+                other!.senderRole === item.senderRole &&
+                Math.abs(new Date(other!.createdAt).getTime() - new Date(item.createdAt).getTime()) < 5 * 60_000 &&
+                formatDay(other!.createdAt) === formatDay(item.createdAt);
+              const groupedWithPrevious = !newDay && sameAs(previous);
+              const lastOfGroup = !sameAs(next);
 
               return (
-                <div key={item.id} className={`flex items-end gap-2 ${isOwn ? 'justify-end' : 'justify-start'}`}>
-                  {!isOwn ? (
-                    <CompanyLogo
-                      className="hidden h-8 w-8 sm:block"
-                      logoUrl={counterpartLogo}
-                      name={item.senderCompanyName ?? counterpartLabel ?? title}
-                      textClassName="text-[10px]"
-                      tone="border border-slate-200 bg-white text-slate-600"
-                    />
+                <div key={item.id} className={groupedWithPrevious ? 'mt-1' : 'mt-4 first:mt-0'}>
+                  {newDay ? (
+                    <div className="mb-4 flex justify-center">
+                      <span className="rounded-full bg-white px-3 py-1 text-[11.5px] font-semibold text-slate-500 shadow-[0_1px_3px_rgba(15,23,42,0.08)]">
+                        {formatDay(item.createdAt)}
+                      </span>
+                    </div>
                   ) : null}
-                  <div
-                    className={`max-w-[82%] rounded-[1.35rem] px-4 py-2 text-sm sm:max-w-[80%] sm:py-2.5 ${
-                      isOwn
-                        ? 'rounded-br-md bg-indigo-600 text-white sm:bg-gradient-to-br sm:from-indigo-600 sm:to-indigo-500 sm:shadow-[0_10px_26px_rgba(79,70,229,0.22)]'
-                        : 'rounded-bl-md bg-slate-100 text-slate-800 sm:border sm:border-slate-200 sm:bg-white sm:text-slate-700 sm:shadow-[0_6px_18px_rgba(15,23,42,0.05)]'
-                    }`}
-                  >
-                    {item.body ? <p className="whitespace-pre-wrap leading-6">{item.body}</p> : null}
-                    {item.attachmentBase64 && item.attachmentName ? (
-                      <a
-                        className={`mt-2 inline-flex items-center gap-1 text-xs font-semibold underline ${isOwn ? 'text-indigo-100' : 'text-indigo-600'}`}
-                        download={item.attachmentName}
-                        href={`data:${item.attachmentMimeType ?? 'application/octet-stream'};base64,${item.attachmentBase64}`}
-                      >
-                        {item.attachmentName}
-                      </a>
+                  <div className={`flex items-end gap-2 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                    {!isOwn ? (
+                      lastOfGroup ? (
+                        <CompanyLogo
+                          className="hidden h-8 w-8 shrink-0 sm:flex"
+                          logoUrl={counterpartLogo}
+                          name={item.senderCompanyName ?? counterpartLabel ?? title}
+                          rounded="rounded-full"
+                          textClassName="text-[10px] font-bold"
+                          tone="border border-slate-200 bg-white text-slate-600"
+                        />
+                      ) : (
+                        <span aria-hidden="true" className="hidden w-8 shrink-0 sm:block" />
+                      )
                     ) : null}
-                    <div className={`mt-1 flex items-center justify-end gap-1 text-[11px] ${isOwn ? 'text-indigo-100' : 'text-slate-400'}`}>
-                      {formatTime(item.createdAt)}
-                      {isOwn ? <span>{readAt ? '✓✓' : '✓'}</span> : null}
+                    <div
+                      className={`max-w-[85%] px-3.5 py-2 text-[14px] sm:max-w-[68%] ${
+                        isOwn
+                          ? `rounded-[18px] bg-indigo-600 text-white ${lastOfGroup ? 'rounded-br-[6px]' : ''}`
+                          : `rounded-[18px] border border-slate-200 bg-white text-slate-800 shadow-[0_1px_2px_rgba(15,23,42,0.06)] ${lastOfGroup ? 'rounded-bl-[6px]' : ''}`
+                      }`}
+                    >
+                      {item.body ? <p className="whitespace-pre-wrap leading-[1.45]">{item.body}</p> : null}
+                      {item.attachmentBase64 && item.attachmentName ? (
+                        <a
+                          className={`mt-1.5 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-semibold ${
+                            isOwn ? 'bg-white/15 text-white' : 'bg-indigo-50 text-indigo-700'
+                          }`}
+                          download={item.attachmentName}
+                          href={`data:${item.attachmentMimeType ?? 'application/octet-stream'};base64,${item.attachmentBase64}`}
+                        >
+                          <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                            <path d="M14 2H7a2 2 0 00-2 2v16a2 2 0 002 2h10a2 2 0 002-2V8zM14 2v6h5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+                          </svg>
+                          {item.attachmentName}
+                        </a>
+                      ) : null}
+                      <div className={`mt-0.5 flex items-center justify-end gap-1 text-[10.5px] ${isOwn ? 'text-indigo-100' : 'text-slate-400'}`}>
+                        {formatTime(item.createdAt)}
+                        {isOwn ? (
+                          <span className={readAt ? 'text-sky-200' : ''} title={readAt ? 'Leído' : 'Enviado'}>
+                            {readAt ? '✓✓' : '✓'}
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -696,7 +776,7 @@ export default function ConversationPanel({
           )}
 
           {typingLabel ? (
-            <div className="flex justify-start">
+            <div className="mt-3 flex justify-start">
               <div className="rounded-[1.35rem] rounded-bl-md border border-slate-200 bg-white px-4 py-2.5 text-xs italic text-slate-400 shadow-sm">
                 {typingLabel}
               </div>

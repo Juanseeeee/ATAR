@@ -2,44 +2,53 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type ReactNode } from 'react';
 import CompanyLogo from '@/components/dashboard/company-logo';
 import ArgentinaMap from '@/components/home/argentina-map';
+import LocationBrowser from '@/components/suppliers/location-browser';
 import SupplierShowcaseCard from '@/components/marketing/supplier-showcase-card';
 import { HeroLead, HeroSearch, HeroSuggestions, HeroTitle } from '@/components/marketing/page-hero';
 import { useRegion } from '@/components/region/region-provider';
 import Reveal from '@/components/ui/reveal';
 import { isCategoryHidden, withoutHiddenCategories } from '@/lib/hidden-categories';
 import { atarApi, SUPPLIER_ROLE_LABELS, type SupplierDirectoryRecord, type SupplierRole } from '@/lib/atar-api';
+import { distanceKm, locatePlace, normalizePlace, searchPlaces, type Located, type Place } from '@/lib/ar-places';
+import type { CountryCode } from '@/lib/regional-terms';
 
 /* Categorías -------------------------------------------------------------- */
 
 /**
  * Familias del filtro. Cada una agrupa etiquetas del catálogo de solicitudes,
  * que es lo que cada proveedor declara en `categories` / `mainProducts`.
+ * `byCountry` pisa el nombre del filtro para un país puntual.
  */
-const FAMILIES: { id: string; label: string; image: string; catalog: string[]; keywords: string[] }[] = [
-  { id: 'bigbags', label: 'Big Bags', image: '/bigbags.png', catalog: ['Big Bags'], keywords: ['big bag', 'fibc'] },
+type Family = { id: string; label: string; image: string; catalog: string[]; keywords: string[]; byCountry?: Partial<Record<CountryCode, string>> };
+
+const FAMILIES: Family[] = ([
+  { id: 'bigbags', label: 'Big Bags', image: '/bigbags.png', catalog: ['Big Bags'], keywords: ['big bag', 'fibc', 'bolson'], byCountry: { AR: 'Bolsones/Bigbags' } },
   { id: 'costales', label: 'Bolsas PP', image: '/bolsaspp.png', catalog: ['Bolsas PP'], keywords: ['costal', 'bolsa', 'saco', 'rafia'] },
   {
     id: 'telas',
-    label: 'Telas y rafia',
+    label: 'Telas de rafia',
     image: '/telasweb.png',
     catalog: ['Rollos y Telas', 'Telas Tubulares', 'Telas planas'],
     keywords: ['tela', 'rafia', 'tejid'],
   },
   {
     id: 'hilos',
-    label: 'Hilos y cuerdas',
+    label: 'Insumos',
     image: '/hilosweb.png',
     catalog: ['Hilo multifilamento de PP', 'Hilo retorcido y Mallas', 'Cuerdas/Cordones'],
-    keywords: ['hilo', 'cuerda', 'cordon', 'malla'],
+    keywords: ['insumo', 'hilo', 'cuerda', 'cordon', 'malla'],
   },
   { id: 'polimeros', label: 'Polímeros', image: '/polimero.png', catalog: ['Polipropileno', 'Polietileno'], keywords: ['polimero', 'polipropileno', 'polietileno', 'pellet'] },
   { id: 'impresion', label: 'Impresión y terminación', image: '/tintas.png', catalog: ['Tintas', 'Cintas/Cintillas'], keywords: ['tinta', 'cinta', 'impres'] },
   { id: 'maquinaria', label: 'Maquinaria', image: '/maquinariaweb.png', catalog: ['Maquinarias'], keywords: ['maquin', 'equipo', 'extrus', 'telar'] },
   { id: 'medida', label: 'A medida', image: '/amedida.png', catalog: ['A medida'], keywords: ['a medida'] },
-].filter((family) => !isCategoryHidden(family.label));
+] as Family[]).filter((family) => !isCategoryHidden(family.label));
+
+/** Si en la localidad elegida no hay proveedores, se muestran los que están a menos de esta distancia. */
+const NEARBY_KM = 200;
 
 const FREQUENT_SEARCHES = withoutHiddenCategories(['Big Bags', 'Telas', 'Rafia', 'Polímeros', 'Maquinaria']);
 
@@ -71,6 +80,158 @@ function supplierFamilies(supplier: SupplierDirectoryRecord) {
 
 function supplierLocation(supplier: SupplierDirectoryRecord) {
   return [supplier.city, supplier.country].filter(Boolean).join(', ');
+}
+
+/**
+ * Filtro por localidad. Si lo escrito es una localidad conocida, la coincidencia
+ * es exacta ("Rosario" no trae "Rosario de la Frontera"); si no, alcanza con que
+ * la contenga ("santa" trae Santa Fe y Santa Rosa).
+ */
+function matchesLocation(supplier: SupplierDirectoryRecord, query: string, cities: { name: string }[]) {
+  const wanted = normalize(query);
+  const city = normalize(supplier.city ?? '');
+  if (cities.some((item) => normalize(item.name) === wanted)) {
+    return city === wanted;
+  }
+  return normalize(supplierLocation(supplier)).includes(wanted);
+}
+
+/**
+ * Campo de texto con sugerencias: primero las localidades donde hay
+ * proveedores y después cualquier localidad de Argentina (Georef), para poder
+ * elegir la exacta aunque ahí no haya empresas (se buscan las cercanas).
+ */
+function LocationFilter({
+  value,
+  cities,
+  onChange,
+  onPick,
+}: {
+  value: string;
+  cities: { name: string; count: number }[];
+  onChange: (value: string) => void;
+  onPick: (name: string, point: { lat: number; lon: number } | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(0);
+  const [places, setPlaces] = useState<{ query: string; list: Place[] }>({ query: '', list: [] });
+  const listId = useId();
+  const query = normalizePlace(value);
+  const exact = cities.some((city) => normalizePlace(city.name) === query);
+
+  // Localidades de Georef para lo escrito (con una pausa para no consultar en cada tecla).
+  useEffect(() => {
+    if (query.length < 2 || exact) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      searchPlaces(value, controller.signal)
+        .then((list) => setPlaces({ query, list }))
+        .catch(() => undefined);
+    }, 250);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [exact, query, value]);
+
+  const withSuppliers = cities.filter((city) => !query || normalizePlace(city.name).includes(query)).slice(0, 6);
+  const supplierNames = new Set(withSuppliers.map((city) => normalizePlace(city.name)));
+  const others = places.query === query ? places.list.filter((place) => !supplierNames.has(normalizePlace(place.name))).slice(0, 6) : [];
+  const options = [
+    ...withSuppliers.map((city) => ({ key: `c-${city.name}`, name: city.name, detail: `${city.count}`, point: null as Place | null })),
+    ...others.map((place) => ({ key: `p-${place.name}-${place.province}`, name: place.name, detail: place.province, point: place })),
+  ];
+  const searching = query.length >= 2 && !exact && places.query !== query;
+
+  function pick(index: number) {
+    const option = options[index];
+    if (!option) return;
+    // Las de Georef llevan la provincia: hay localidades con el mismo nombre en varias.
+    const label = option.point && option.point.province ? `${option.name}, ${option.point.province}` : option.name;
+    onPick(label, option.point ? { lat: option.point.lat, lon: option.point.lon } : null);
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative">
+      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+        <PinIcon />
+      </span>
+      <input
+        aria-autocomplete="list"
+        aria-controls={listId}
+        aria-expanded={open && options.length > 0}
+        aria-label="Localidad"
+        className="h-10 w-full rounded-[10px] border border-slate-200 bg-white pl-9 pr-8 text-[13px] text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-[#1f5bff]"
+        onBlur={() => setOpen(false)}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setHighlight(0);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            setOpen(true);
+            setHighlight((current) => Math.min(current + 1, options.length - 1));
+          } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            setHighlight((current) => Math.max(current - 1, 0));
+          } else if (event.key === 'Enter' && open && options[highlight]) {
+            event.preventDefault();
+            pick(highlight);
+          } else if (event.key === 'Escape') {
+            setOpen(false);
+          }
+        }}
+        placeholder="Escribí una localidad"
+        role="combobox"
+        value={value}
+      />
+      {value ? (
+        <button
+          aria-label="Borrar localidad"
+          className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+          onClick={() => onChange('')}
+          onMouseDown={(event) => event.preventDefault()}
+          type="button"
+        >
+          <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeLinecap="round" strokeWidth="2" />
+          </svg>
+        </button>
+      ) : null}
+      {open && !exact && (options.length > 0 || query) ? (
+        <ul
+          className="absolute left-0 right-0 top-full z-20 mt-1 max-h-72 overflow-y-auto rounded-[10px] border border-slate-200 bg-white p-1 shadow-[0_14px_32px_rgba(15,35,95,0.12)]"
+          id={listId}
+          role="listbox"
+        >
+          {options.map((option, index) => (
+            <li key={option.key} aria-selected={index === highlight} role="option">
+              {index === withSuppliers.length && index > 0 ? <p className="mx-2 mt-1 border-t border-slate-100 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Otras localidades</p> : null}
+              <button
+                className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-[13px] transition ${
+                  index === highlight ? 'bg-[#f3f6ff] text-[#1f5bff]' : 'text-slate-700'
+                }`}
+                onClick={() => pick(index)}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setHighlight(index)}
+                type="button"
+              >
+                <span className="truncate">{option.name}</span>
+                <span className="shrink-0 truncate text-[12px] text-slate-400">{option.detail}</span>
+              </button>
+            </li>
+          ))}
+          {options.length === 0 ? (
+            <li className="px-3 py-2 text-[13px] text-slate-500">{searching ? 'Buscando localidades…' : 'No encontramos esa localidad.'}</li>
+          ) : null}
+        </ul>
+      ) : null}
+    </div>
+  );
 }
 
 /* Iconos ------------------------------------------------------------------ */
@@ -129,14 +290,24 @@ const primaryCta =
   'inline-flex h-12 items-center justify-center gap-2 rounded-[10px] bg-[#1f5bff] px-6 text-sm font-semibold shadow-[0_14px_36px_rgba(31,91,255,0.35)] transition hover:-translate-y-0.5 hover:bg-[#194ee6]';
 
 export default function ProveedoresPage() {
-  const { categoryName } = useRegion();
+  const { categoryName, region } = useRegion();
+  /** Nombre del filtro: el propio del país si lo tiene, si no el regional del rubro. */
+  const familyName = useCallback(
+    (family: Family) => (region && region !== 'XX' && family.byCountry?.[region]) || categoryName(family.label),
+    [categoryName, region],
+  );
   const [suppliers, setSuppliers] = useState<SupplierDirectoryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
   const [families, setFamilies] = useState<string[]>([]);
-  const [location, setLocation] = useState('all');
+  // Localidad escrita o elegida en el filtro (vacío = todas) y, si se eligió
+  // una de las sugerencias, sus coordenadas (para buscar por cercanía).
+  const [location, setLocation] = useState('');
+  const [locationPoint, setLocationPoint] = useState<{ lat: number; lon: number } | null>(null);
+  // Coordenadas de la ciudad de cada proveedor (por id).
+  const [supplierPoints, setSupplierPoints] = useState<Record<string, Located | null>>({});
   const [roles, setRoles] = useState<SupplierRole[]>([]);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [certifications, setCertifications] = useState<string[]>([]);
@@ -174,6 +345,17 @@ export default function ProveedoresPage() {
   }, []);
 
   // Opciones y conteos de los filtros, siempre sobre la base cargada.
+  useEffect(() => {
+    let cancelled = false;
+    const argentine = suppliers.filter((supplier) => supplier.city && /^(ar|argentina)$/i.test(supplier.country ?? 'AR'));
+    Promise.all(argentine.map(async (supplier) => [supplier.id, await locatePlace(supplier.city as string)] as const)).then((entries) => {
+      if (!cancelled) setSupplierPoints(Object.fromEntries(entries));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [suppliers]);
+
   const familyCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const supplier of suppliers) {
@@ -192,6 +374,38 @@ export default function ProveedoresPage() {
     }
     return Array.from(counts, ([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
   }, [suppliers]);
+  // Provincia de cada localidad con proveedores (sale de Georef, ver lib/ar-places).
+  const provinceOf = useCallback(
+    (city: string) => {
+      const supplier = suppliers.find((item) => item.city === city && supplierPoints[item.id]?.province);
+      return supplier ? (supplierPoints[supplier.id]?.province ?? null) : null;
+    },
+    [supplierPoints, suppliers],
+  );
+
+  // Provincia que se está mirando en "Proveedores por ubicación": el mapa hace
+  // zoom y muestra solo sus localidades.
+  const [mapProvince, setMapProvince] = useState<string | null>(null);
+  const mapCities = useMemo(
+    () =>
+      cities
+        .filter((city) => !mapProvince || provinceOf(city.name) === mapProvince)
+        .map((city) => ({ ...city, point: suppliers.map((item) => (item.city === city.name ? supplierPoints[item.id] : null)).find(Boolean) ?? null })),
+    [cities, mapProvince, provinceOf, supplierPoints, suppliers],
+  );
+
+  // Sin proveedores en la localidad elegida: se buscan los cercanos.
+  const nearbyMode =
+    Boolean(locationPoint) && location.trim() !== '' && !cities.some((city) => normalizePlace(city.name) === normalizePlace(location));
+  const distances = useMemo(() => {
+    const map: Record<string, number> = {};
+    if (!locationPoint) return map;
+    for (const [id, point] of Object.entries(supplierPoints)) {
+      if (point) map[id] = distanceKm(locationPoint, point);
+    }
+    return map;
+  }, [locationPoint, supplierPoints]);
+
   const roleOptions = useMemo(
     () => (Object.keys(SUPPLIER_ROLE_LABELS) as SupplierRole[]).map((role) => ({ role, count: suppliers.filter((s) => s.supplierRole === role).length })),
     [suppliers],
@@ -209,7 +423,11 @@ export default function ProveedoresPage() {
       if (families.length > 0 && !ownFamilies.some((family) => families.includes(family.id))) {
         return false;
       }
-      if (location !== 'all' && supplier.city !== location) {
+      if (nearbyMode) {
+        if (!(distances[supplier.id] <= NEARBY_KM)) {
+          return false;
+        }
+      } else if (location.trim() && !matchesLocation(supplier, location, cities)) {
         return false;
       }
       if (roles.length > 0 && (!supplier.supplierRole || !roles.includes(supplier.supplierRole))) {
@@ -231,12 +449,16 @@ export default function ProveedoresPage() {
           supplier.description ?? '',
           supplier.about ?? '',
           ...supplierProducts(supplier).flatMap((item) => [item, categoryName(item)]),
-          ...ownFamilies.flatMap((family) => [family.label, categoryName(family.label)]),
+          ...ownFamilies.flatMap((family) => [family.label, familyName(family)]),
         ].join(' '),
       ).includes(query);
     });
 
     return [...result].sort((left, right) => {
+      // Por cercanía, primero los más cercanos.
+      if (nearbyMode) {
+        return distances[left.id] - distances[right.id];
+      }
       if (sort === 'name') {
         return left.name.localeCompare(right.name);
       }
@@ -246,7 +468,7 @@ export default function ProveedoresPage() {
       // Relevancia: verificados primero, después los que cubren más rubros.
       return Number(right.isVerified) - Number(left.isVerified) || supplierProducts(right).length - supplierProducts(left).length;
     });
-  }, [categoryName, certifications, families, location, roles, search, sort, suppliers, verifiedOnly]);
+  }, [categoryName, certifications, cities, distances, familyName, families, location, nearbyMode, roles, search, sort, suppliers, verifiedOnly]);
 
   const visibleSuppliers = filteredSuppliers.slice(0, visibleCount);
   const featuredSuppliers = useMemo(
@@ -254,7 +476,7 @@ export default function ProveedoresPage() {
     [suppliers],
   );
   const hasFilters =
-    Boolean(search) || families.length > 0 || location !== 'all' || roles.length > 0 || verifiedOnly || certifications.length > 0;
+    Boolean(search) || families.length > 0 || location.trim() !== '' || roles.length > 0 || verifiedOnly || certifications.length > 0;
 
   function resetPaging() {
     setVisibleCount(PAGE_SIZE);
@@ -263,7 +485,8 @@ export default function ProveedoresPage() {
   function clearFilters() {
     setSearch('');
     setFamilies([]);
-    setLocation('all');
+    setLocation('');
+    setLocationPoint(null);
     setRoles([]);
     setVerifiedOnly(false);
     setCertifications([]);
@@ -276,6 +499,7 @@ export default function ProveedoresPage() {
 
   function selectCity(city: string) {
     setLocation(city);
+    setLocationPoint(null);
     resetPaging();
     scrollToDirectory();
   }
@@ -375,7 +599,7 @@ export default function ProveedoresPage() {
                     key={family.id}
                     checked={families.includes(family.id)}
                     count={familyCounts.get(family.id) ?? 0}
-                    label={categoryName(family.label)}
+                    label={familyName(family)}
                     onChange={() => {
                       setFamilies((current) => toggle(current, family.id));
                       resetPaging();
@@ -385,26 +609,20 @@ export default function ProveedoresPage() {
               </FilterGroup>
 
               <FilterGroup title="Ubicación">
-                <div className="relative">
-                  <select
-                    className="h-10 w-full appearance-none rounded-[10px] border border-slate-200 bg-white px-3 pr-9 text-[13px] text-slate-700 outline-none transition focus:border-[#1f5bff]"
-                    onChange={(event) => {
-                      setLocation(event.target.value);
-                      resetPaging();
-                    }}
-                    value={location}
-                  >
-                    <option value="all">Todas las ubicaciones</option>
-                    {cities.map((city) => (
-                      <option key={city.name} value={city.name}>
-                        {city.name} ({city.count})
-                      </option>
-                    ))}
-                  </select>
-                  <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">
-                    <ChevronIcon />
-                  </span>
-                </div>
+                <LocationFilter
+                  cities={cities}
+                  onChange={(value) => {
+                    setLocation(value);
+                    setLocationPoint(null);
+                    resetPaging();
+                  }}
+                  onPick={(name, point) => {
+                    setLocation(name);
+                    setLocationPoint(point);
+                    resetPaging();
+                  }}
+                  value={location}
+                />
               </FilterGroup>
 
               <FilterGroup title="Tipo de empresa">
@@ -487,6 +705,20 @@ export default function ProveedoresPage() {
                 <div className="mt-4 rounded-[12px] border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">{error}</div>
               ) : null}
 
+              {nearbyMode && !loading ? (
+                <div className="mt-4 flex items-start gap-3 rounded-[12px] border border-[#c9d6ff] bg-[#f3f6ff] px-4 py-3 text-[13.5px] text-slate-700">
+                  <span className="mt-0.5 text-[#1f5bff]">
+                    <PinIcon />
+                  </span>
+                  <p>
+                    No hay proveedores en <b className="text-slate-950">{location}</b>.{' '}
+                    {filteredSuppliers.length > 0
+                      ? `Te mostramos los que están a menos de ${NEARBY_KM} km, del más cercano al más lejano.`
+                      : `Tampoco encontramos proveedores a menos de ${NEARBY_KM} km.`}
+                  </p>
+                </div>
+              ) : null}
+
               {loading ? (
                 <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {Array.from({ length: 6 }).map((_, index) => (
@@ -505,7 +737,7 @@ export default function ProveedoresPage() {
                   <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                     {visibleSuppliers.map((supplier, index) => (
                       <Reveal key={supplier.id} className="h-full" delay={(index % 3) * 80}>
-                        <SupplierCard supplier={supplier} />
+                        <SupplierCard distance={nearbyMode ? distances[supplier.id] : undefined} supplier={supplier} />
                       </Reveal>
                     ))}
                   </div>
@@ -536,7 +768,7 @@ export default function ProveedoresPage() {
         <div className="absolute inset-0 bg-[#0b1530]/60 lg:hidden" />
         <Reveal className="relative z-10 mx-auto w-full max-w-[1440px] px-6 py-14 lg:px-12 lg:py-16">
           <h2 className="max-w-[640px] text-3xl font-bold leading-[1.1] tracking-[-0.03em] sm:text-[2.5rem]">
-            Mostrá tus productos a compradores de todo el país.
+            Mostrá tus productos a clientes de todo el país.
           </h2>
           <p className="mt-4 max-w-[500px] text-base leading-7 text-white/75">
             Sumá tu empresa a ATAR, recibí solicitudes de cotización y respondelas desde un solo lugar.
@@ -559,30 +791,15 @@ export default function ProveedoresPage() {
             <p className="mt-1.5 text-sm text-slate-500">Encontrá empresas en tu región.</p>
             <div className="mt-6 grid grid-cols-1 items-center gap-6 sm:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
               <div className="mx-auto h-[360px] w-full max-w-[300px] sm:h-[400px]">
-                <ArgentinaMap className="h-full w-full" cities={cities} onSelect={selectCity} selected={location === 'all' ? undefined : location} />
+                <ArgentinaMap
+                  cities={mapCities}
+                  className="h-full w-full"
+                  onSelect={selectCity}
+                  province={mapProvince}
+                  selected={location.trim() || undefined}
+                />
               </div>
-              <div className="rounded-[14px] border border-slate-200 bg-white p-2">
-                {cities.length === 0 ? (
-                  <p className="px-3 py-4 text-sm text-slate-500">{loading ? 'Cargando…' : 'Sin ubicaciones cargadas.'}</p>
-                ) : (
-                  cities.map((city) => (
-                    <button
-                      key={city.name}
-                      className="flex w-full items-center justify-between gap-3 rounded-[10px] px-3 py-2.5 text-left text-sm text-slate-700 transition hover:bg-[#f3f6ff] hover:text-[#1f5bff]"
-                      onClick={() => selectCity(city.name)}
-                      type="button"
-                    >
-                      <span className="flex items-center gap-2.5">
-                        <span className="text-[#1f5bff]">
-                          <PinIcon />
-                        </span>
-                        {city.name} <span className="text-slate-400">({city.count})</span>
-                      </span>
-                      <ChevronIcon direction="right" />
-                    </button>
-                  ))
-                )}
-              </div>
+              <LocationBrowser cities={cities} loading={loading} onProvinceChange={setMapProvince} onSelectCity={selectCity} provinceOf={provinceOf} />
             </div>
           </Reveal>
 
@@ -599,7 +816,7 @@ export default function ProveedoresPage() {
             </div>
             <div className="mt-6 grid gap-5">
               {featuredSuppliers.map((supplier) => (
-                <SupplierShowcaseCard key={supplier.id} supplier={supplier} />
+                <SupplierShowcaseCard key={supplier.id} compact supplier={supplier} />
               ))}
             </div>
           </Reveal>
@@ -673,7 +890,7 @@ function Checkbox({ checked, label, count, onChange }: { checked: boolean; label
   );
 }
 
-function SupplierCard({ supplier }: { supplier: SupplierDirectoryRecord }) {
+function SupplierCard({ supplier, distance }: { supplier: SupplierDirectoryRecord; distance?: number }) {
   const family = supplierFamilies(supplier)[0];
   const { categoryName } = useRegion();
   const products = supplierProducts(supplier).slice(0, 3).map(categoryName);
@@ -717,6 +934,7 @@ function SupplierCard({ supplier }: { supplier: SupplierDirectoryRecord }) {
         <p className="mt-3 flex items-center gap-1.5 text-[12px] text-slate-500">
           <PinIcon className="h-3.5 w-3.5" />
           {supplierLocation(supplier)}
+          {distance !== undefined ? <span className="font-semibold text-[#1f5bff]">· a {Math.round(distance)} km</span> : null}
         </p>
         <div className="mt-auto pt-4">
           <Link

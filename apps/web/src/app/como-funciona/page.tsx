@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import CountUp from '@/components/ui/count-up';
 import Reveal from '@/components/ui/reveal';
+import ActionGuide from './action-guide';
 import VideoTrigger from './video-trigger';
 
 /* ============================ ICONOS ============================ */
@@ -112,17 +112,6 @@ function Icon({ name, className = 'h-5 w-5' }: { name: IconName; className?: str
   );
 }
 
-function CheckItem({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
-  return (
-    <li className={`flex items-center gap-2.5 text-[14px] ${dark ? 'text-white/85' : 'text-slate-700'}`}>
-      <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] bg-[#1f5bff] text-white">
-        <Icon name="check" className="h-3 w-3" />
-      </span>
-      {children}
-    </li>
-  );
-}
-
 /* ============================ DATA ============================ */
 
 const STEPS: { n: number; title: string; text: string; icon: IconName }[] = [
@@ -132,22 +121,33 @@ const STEPS: { n: number; title: string; text: string; icon: IconName }[] = [
   { n: 4, title: 'Hacé negocios', text: 'Recibí propuestas, conversá con las empresas y cerrá tu compra.', icon: 'handshake' },
 ];
 
-const REASONS: { icon: IconName; title: string; text: string }[] = [
-  { icon: 'shield', title: 'Empresas verificadas', text: 'Proveedoras reales de la industria.' },
-  { icon: 'clock', title: 'Ahorro de tiempo', text: 'Todas las opciones en un solo lugar.' },
-  { icon: 'chart', title: 'Más oportunidades', text: 'Conectá con nuevos clientes y expandí tu negocio.' },
-  { icon: 'gear', title: 'Enfoque en la industria', text: 'Especializada en rafia, Big Bags y más.' },
-  { icon: 'lock', title: 'Seguro y confiable', text: 'Tus datos y consultas siempre protegidos.' },
-  { icon: 'globe', title: 'Alcance regional', text: 'Empresas de toda Latinoamérica.' },
+const FAQ: { title: string; items: { q: string; a: string }[] }[] = [
+  {
+    title: 'General',
+    items: [
+      { q: '¿Qué es ATAR?', a: 'Un marketplace B2B para la industria de la rafia y el polipropileno. Conecta a empresas que compran con proveedores de bolsones, bolsas, telas, hilos, insumos y maquinaria.' },
+      { q: '¿Tiene costo pedir cotizaciones?', a: 'No. Pedir cotizaciones es gratis y no te obliga a comprar: recibís las propuestas y decidís si avanzás.' },
+      { q: '¿En qué países funciona?', a: 'En Argentina y el resto de Latinoamérica. Elegís tu país arriba a la derecha y los productos aparecen con el nombre que se usa allí (por ejemplo, bolsones, maxisacos o súper sacos).' },
+    ],
+  },
+  {
+    title: 'Para clientes',
+    items: [
+      { q: '¿Cómo pido una cotización?', a: 'Desde “Solicitar cotización” podés elegir productos del catálogo, contárselo a ATARIA, subir una planilla o describir un producto a medida. Después respondés unas preguntas simples, indicás la entrega y elegís a quién enviarla.' },
+      { q: '¿Puedo pedir varios productos en la misma solicitud?', a: 'Sí. Agregás todos los productos que necesitás y cada proveedor cotiza los que trabaja. Después comparás todo en una sola pantalla.' },
+      { q: '¿Qué hago si no sé un dato técnico?', a: 'En cada pregunta podés elegir “No sé, a definir”. El proveedor lo tiene en cuenta y te asesora en su propuesta.' },
+      { q: '¿A quién le llega mi solicitud?', a: 'A los proveedores que elijas. Si querés, también podés abrirla a todos los proveedores del rubro para recibir más propuestas.' },
+      { q: '¿Necesito una cuenta para hablar con ATARIA?', a: 'No. En la página de Productos podés charlar con ATARIA sin registrarte: te dice qué proveedores trabajan lo que buscás. Para enviar la solicitud sí necesitás tu cuenta, y lo que le contaste queda cargado.' },
+    ],
+  },
+  {
+    title: 'Para proveedores',
+    items: [
+      { q: '¿Cómo recibo solicitudes?', a: 'Te llegan las solicitudes de los rubros que trabajás y las que te envían directamente. Las respondés desde tu panel con precio y condiciones.' },
+      { q: '¿Cómo aparezco en las búsquedas?', a: 'Completá tu perfil con los productos que fabricás o vendés y tu localidad. Los clientes te encuentran por producto, por provincia y por cercanía.' },
+    ],
+  },
 ];
-
-const STATS: { icon: IconName; v: string; l: string }[] = [
-  { icon: 'building', v: '450+', l: 'empresas verificadas' },
-  { icon: 'box', v: '12.000+', l: 'productos publicados' },
-  { icon: 'quote', v: '38.000+', l: 'cotizaciones gestionadas' },
-  { icon: 'globe', v: '8', l: 'países de la región' },
-];
-
 
 // globals.css fija `a { color: inherit }` fuera de las capas de Tailwind: en
 // los <Link> el color del texto va en un <span> hijo.
@@ -272,163 +272,55 @@ export default function ComoFuncionaPage() {
         </div>
       </section>
 
-      {/* ==================== POR QUÉ ATAR ==================== */}
-      <section className="bg-[#f5f7fc]">
-        <div className="mx-auto grid w-full max-w-[1440px] items-center gap-12 px-6 py-16 lg:grid-cols-[0.85fr_1.15fr] lg:px-12 lg:py-20">
+      {/* ==================== GUÍA EN VIDEO ==================== */}
+      <section className="bg-[#f5f7fc]" id="guia">
+        <div className="mx-auto w-full max-w-[1440px] px-6 py-16 lg:px-12 lg:py-20">
+          <Reveal className="max-w-[640px]">
+            <h2 className="text-3xl font-bold tracking-[-0.03em] text-[#0b1530] sm:text-[2.5rem]">Guía en video</h2>
+            <p className="mt-3 text-[15px] leading-7 text-slate-600">Videos cortos, grabados sobre la plataforma, para cada cosa que podés hacer en ATAR.</p>
+          </Reveal>
+          <Reveal className="mt-10" delay={100}>
+            <ActionGuide />
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ==================== PREGUNTAS FRECUENTES ==================== */}
+      <section className="bg-white" id="preguntas-frecuentes">
+        <div className="mx-auto grid w-full max-w-[1440px] gap-10 px-6 py-16 lg:grid-cols-[0.8fr_1.2fr] lg:px-12 lg:py-20">
           <Reveal>
-            <h2 className="text-3xl font-bold leading-[1.1] tracking-[-0.03em] text-[#0b1530] sm:text-[2.5rem]">
-              Más que un marketplace, <br />
-              <span className="text-[#1f5bff]">una red industrial.</span>
-            </h2>
-            <p className="mt-5 max-w-[480px] text-[15px] leading-7 text-slate-600">
-              Diseñamos una plataforma especializada para la industria de la rafia, donde compradores y proveedores se
-              encuentran en un mismo lugar.
+            <h2 className="text-3xl font-bold tracking-[-0.03em] text-[#0b1530] sm:text-[2.5rem]">Preguntas frecuentes</h2>
+            <p className="mt-3 max-w-[420px] text-[15px] leading-7 text-slate-600">
+              ¿Te queda alguna duda? Escribinos desde{' '}
+              <Link className="font-semibold" href="/contacto">
+                <span className="text-[#1f5bff] hover:underline">Contacto</span>
+              </Link>{' '}
+              o preguntale a ATARIA en Productos.
             </p>
           </Reveal>
-          <div className="grid gap-x-8 gap-y-8 sm:grid-cols-2 xl:grid-cols-3">
-            {REASONS.map((reason, index) => (
-              <Reveal key={reason.title} className="group flex gap-3" delay={index * 70}>
-                <span className="text-[#1f5bff] transition duration-300 group-hover:scale-110">
-                  <Icon name={reason.icon} className="h-7 w-7" />
-                </span>
-                <div>
-                  <p className="text-[15px] font-bold text-[#0b1530]">{reason.title}</p>
-                  <p className="mt-1 text-[13px] leading-5 text-slate-500">{reason.text}</p>
+          <div className="space-y-8">
+            {FAQ.map((group) => (
+              <Reveal key={group.title}>
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-[#1f5bff]">{group.title}</p>
+                <div className="mt-3 divide-y divide-slate-200 rounded-[16px] border border-slate-200 bg-white">
+                  {group.items.map((item) => (
+                    <details key={item.q} className="group px-5 [&_summary::-webkit-details-marker]:hidden">
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-[15px] font-semibold text-[#0b1530]">
+                        {item.q}
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#eef3ff] text-[#1f5bff] transition group-open:rotate-45">
+                          <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                            <path d="M12 5v14M5 12h14" stroke="currentColor" strokeLinecap="round" strokeWidth="2.4" />
+                          </svg>
+                        </span>
+                      </summary>
+                      <p className="pb-5 pr-10 text-[14px] leading-6 text-slate-600">{item.a}</p>
+                    </details>
+                  ))}
                 </div>
               </Reveal>
             ))}
           </div>
         </div>
-      </section>
-
-      {/* ==================== COMPRADORES / PROVEEDORES ==================== */}
-      <section className="bg-white">
-        <div className="mx-auto grid w-full max-w-[1440px] gap-5 px-6 py-14 lg:grid-cols-2 lg:px-12 lg:py-16">
-          <Reveal className="group relative isolate flex min-h-[320px] overflow-hidden rounded-[16px] bg-[linear-gradient(110deg,#f3f6fd_0%,#f3f6fd_45%,#e3ebff_100%)] p-8 sm:p-10">
-            <div className="pointer-events-none absolute bottom-0 right-0 top-0 hidden w-[48%] overflow-hidden sm:block">
-              <Image alt="" className="object-cover object-[82%_center] transition duration-500 group-hover:scale-105" fill sizes="(min-width:1024px) 24vw, 48vw" src="/card-compradores.png" />
-              <div className="absolute inset-0 bg-[linear-gradient(90deg,#f3f6fd_0%,rgba(243,246,253,0.4)_40%,transparent_70%)]" />
-            </div>
-            <div className="relative z-10 max-w-[360px]">
-              <h3 className="text-[1.8rem] font-bold leading-[1.12] tracking-[-0.03em] text-[#0b1530]">Encontrá lo que necesitás para producir.</h3>
-              <ul className="mt-5 space-y-2.5">
-                <CheckItem>Accedé a proveedores verificados</CheckItem>
-                <CheckItem>Compará productos y especificaciones</CheckItem>
-                <CheckItem>Solicitá cotizaciones en minutos</CheckItem>
-                <CheckItem>Encontrá nuevas alternativas</CheckItem>
-              </ul>
-              <Link className={`${primaryCta} mt-7`} href="/acceso?perfil=cliente">
-                <span className="inline-flex items-center gap-2 text-white">
-                  Quiero comprar
-                  <Icon name="arrow" className="h-4 w-4" />
-                </span>
-              </Link>
-            </div>
-          </Reveal>
-
-          <Reveal className="group relative isolate flex min-h-[320px] overflow-hidden rounded-[16px] bg-[#0b1530] p-8 text-white sm:p-10" delay={120}>
-            <div className="pointer-events-none absolute bottom-0 right-0 top-0 hidden w-[55%] overflow-hidden sm:block">
-              <Image alt="" className="object-cover object-[78%_center] transition duration-500 group-hover:scale-105" fill sizes="(min-width:1024px) 28vw, 55vw" src="/card-proveedores.png" />
-              <div className="absolute inset-0 bg-[linear-gradient(90deg,#0b1530_0%,rgba(11,21,48,0.55)_40%,rgba(11,21,48,0.1)_100%)]" />
-            </div>
-            <div className="relative z-10 max-w-[360px]">
-              <h3 className="text-[1.8rem] font-bold leading-[1.12] tracking-[-0.03em]">Llevá tus productos a más clientes.</h3>
-              <ul className="mt-5 space-y-2.5">
-                <CheckItem dark>Publicá tu catálogo de productos</CheckItem>
-                <CheckItem dark>Recibí solicitudes de cotización</CheckItem>
-                <CheckItem dark>Conectá con empresas de la región</CheckItem>
-                <CheckItem dark>Hacé crecer tu negocio</CheckItem>
-              </ul>
-              <Link className={`${primaryCta} mt-7`} href="/acceso?perfil=proveedor">
-                <span className="inline-flex items-center gap-2 text-white">
-                  Quiero vender
-                  <Icon name="arrow" className="h-4 w-4" />
-                </span>
-              </Link>
-            </div>
-          </Reveal>
-        </div>
-      </section>
-
-      {/* ==================== EL PROCESO EN ACCIÓN ==================== */}
-      <section className="relative isolate overflow-hidden bg-[#0b1530] text-white">
-        <div className="absolute inset-y-0 right-0 w-full lg:w-[62%]">
-          <Image alt="" className="object-cover object-center" fill sizes="(min-width:1024px) 62vw, 100vw" src="/telaplana.png" />
-        </div>
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,#0b1530_0%,#0b1530_36%,rgba(11,21,48,0.7)_52%,rgba(11,21,48,0.3)_78%)]" />
-        <div className="absolute inset-0 bg-[#0b1530]/55 lg:hidden" />
-        <div className="relative z-10 mx-auto grid w-full max-w-[1440px] items-center gap-10 px-6 py-16 lg:grid-cols-[1fr_0.8fr] lg:px-12 lg:py-20">
-          <Reveal>
-            <h2 className="text-3xl font-bold leading-[1.1] tracking-[-0.03em] sm:text-[2.6rem]">
-              Conectando <br />
-              una industria real.
-            </h2>
-            <p className="mt-4 max-w-[460px] text-base leading-7 text-white/75">
-              Mirá cómo empresas de toda la cadena del polipropileno utilizan ATAR para encontrar proveedores, solicitar
-              cotizaciones y hacer crecer su negocio.
-            </p>
-            <VideoTrigger className={`${primaryCta} mt-7 text-white`}>
-              Reproducir video (1:20)
-              <Icon name="play" className="h-4 w-4" />
-            </VideoTrigger>
-          </Reveal>
-          <div className="hidden justify-center lg:flex">
-            <VideoTrigger className="group">
-              <span className="flex h-24 w-24 items-center justify-center rounded-full bg-white/85 text-[#0b1530] shadow-[0_18px_50px_rgba(0,0,0,0.35)] backdrop-blur transition group-hover:scale-105 group-hover:bg-white">
-                <Icon name="play" className="ml-1 h-9 w-9" />
-              </span>
-            </VideoTrigger>
-          </div>
-        </div>
-      </section>
-
-      {/* ==================== LA INDUSTRIA CONFÍA ==================== */}
-      <section className="bg-white">
-        <div className="mx-auto w-full max-w-[1440px] px-6 py-16 lg:px-12 lg:py-20">
-          <Reveal className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h2 className="text-3xl font-bold tracking-[-0.03em] text-[#0b1530] sm:text-[2.5rem]">La industria confía en ATAR.</h2>
-            </div>
-            <p className="max-w-[420px] text-[15px] leading-6 text-slate-600">
-              Cada día más empresas se suman para fortalecer la cadena de valor de la rafia.
-            </p>
-          </Reveal>
-          <Reveal className="mt-10 grid grid-cols-2 gap-y-8 lg:grid-cols-4 lg:divide-x lg:divide-slate-200">
-            {STATS.map((stat) => (
-              <div key={stat.l} className="flex items-center gap-4 lg:px-8 lg:first:pl-0">
-                <Icon name={stat.icon} className="h-10 w-10 shrink-0 text-[#1f5bff]" />
-                <div>
-                  <p className="text-[2rem] font-bold leading-none tracking-tight text-[#0b1530]">
-                    <CountUp value={stat.v} />
-                  </p>
-                  <p className="mt-1.5 text-[13px] text-slate-500">{stat.l}</p>
-                </div>
-              </div>
-            ))}
-          </Reveal>
-        </div>
-      </section>
-
-      {/* ==================== CTA FINAL ==================== */}
-      <section className="relative isolate overflow-hidden bg-[#0b1530] text-white">
-        <div className="absolute inset-y-0 right-0 w-full lg:w-[65%]">
-          <Image alt="" className="object-cover object-center" fill sizes="(min-width:1024px) 65vw, 100vw" src="/bigbags.png" />
-        </div>
-        <div className="absolute inset-0 bg-[linear-gradient(90deg,#0b1530_0%,#0b1530_35%,rgba(11,21,48,0.75)_55%,rgba(11,21,48,0.35)_100%)]" />
-        <div className="absolute inset-0 bg-[#0b1530]/55 lg:hidden" />
-        <Reveal className="relative z-10 mx-auto w-full max-w-[1440px] px-6 py-16 lg:px-12 lg:py-20">
-          <h2 className="text-3xl font-bold tracking-[-0.03em] sm:text-[2.8rem]">Empezá hoy en ATAR.</h2>
-          <p className="mt-4 max-w-[480px] text-base leading-7 text-white/75">
-            Ya seas comprador o proveedor, creá tu cuenta y empezá a formar parte de la red comercial de la industria de la
-            rafia.
-          </p>
-          <Link className={`${primaryCta} mt-8`} href="/acceso?modo=registro">
-            <span className="inline-flex items-center gap-2 text-white">
-              Crear cuenta
-              <Icon name="arrow" className="h-4 w-4" />
-            </span>
-          </Link>
-        </Reveal>
       </section>
     </main>
   );

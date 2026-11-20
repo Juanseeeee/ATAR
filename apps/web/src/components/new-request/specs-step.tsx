@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import type { RequestCatalogFieldRecord } from '@/lib/atar-api';
 import { TO_DEFINE, categoryIconFor, type ProductLine } from '@/lib/new-request';
 import { getCategoryUnits } from '@/lib/request-units';
@@ -142,6 +142,108 @@ function OptionTile({ label, selected, onClick, children }: { label: string; sel
       </span>
       <span className="min-w-0 flex-1">{children ?? label}</span>
     </button>
+  );
+}
+
+/**
+ * Campo de texto con desplegable: muestra los valores estándar que coinciden
+ * con lo escrito; se puede elegir uno o dejar el valor propio.
+ */
+function ComboInput({
+  value,
+  options,
+  placeholder,
+  onChange,
+  onPick,
+  onEnter,
+}: {
+  value: string;
+  options: string[];
+  placeholder: string;
+  onChange: (value: string) => void;
+  onPick: (value: string) => void;
+  onEnter: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [highlight, setHighlight] = useState(-1);
+  const listId = useId();
+  const digits = value.replace(/[^\d]/g, '');
+  // Con números escritos, primero los que empiezan igual ("6" → 60, 65).
+  const matches = digits ? options.filter((option) => option.replace(/[^\d]/g, '').startsWith(digits)) : options;
+  const list = matches.length > 0 ? matches : options;
+
+  return (
+    <div className="relative w-full max-w-[360px]">
+      <input
+        aria-autocomplete="list"
+        aria-controls={listId}
+        aria-expanded={open}
+        autoFocus
+        className={`${textField} pr-11`}
+        onBlur={() => setOpen(false)}
+        onChange={(event) => {
+          onChange(event.target.value);
+          setHighlight(0);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            setOpen(true);
+            setHighlight((current) => Math.min(current + 1, list.length - 1));
+          } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            setHighlight((current) => Math.max(current - 1, 0));
+          } else if (event.key === 'Enter') {
+            event.preventDefault();
+            if (open && highlight >= 0 && list[highlight]) onPick(list[highlight]);
+            else onEnter();
+          } else if (event.key === 'Escape') {
+            setOpen(false);
+          }
+        }}
+        placeholder={placeholder}
+        role="combobox"
+        value={value}
+      />
+      <button
+        aria-label="Ver valores estándar"
+        className="absolute right-1.5 top-1.5 flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition hover:bg-slate-100"
+        onClick={() => setOpen((current) => !current)}
+        onMouseDown={(event) => event.preventDefault()}
+        tabIndex={-1}
+        type="button"
+      >
+        <svg aria-hidden="true" className={`h-4 w-4 transition ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24">
+          <path d="m6 9 6 6 6-6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" />
+        </svg>
+      </button>
+      {open ? (
+        <ul
+          className="absolute left-0 right-0 top-full z-30 mt-1.5 max-h-64 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-[0_18px_40px_rgba(15,35,95,0.18)]"
+          id={listId}
+          role="listbox"
+        >
+          {list.map((option, position) => (
+            <li key={option} aria-selected={option === value} role="option">
+              <button
+                className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-[15px] transition ${
+                  position === highlight ? 'bg-[#f3f6ff] text-[#1238d6]' : 'text-slate-800'
+                }`}
+                onClick={() => onPick(option)}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setHighlight(position)}
+                type="button"
+              >
+                {option}
+                {option === value ? <Icon className="h-4 w-4 text-[#1f5bff]" name="check" /> : null}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 
@@ -361,8 +463,9 @@ export default function SpecsStep({
         </div>
       );
     } else {
-      // Texto libre (medidas, ancho…) o fecha.
-      body = (
+      // Texto libre (medidas, ancho…) o fecha. Si el campo trae valores
+      // estándar (gramaje), van al lado como atajos de un toque.
+      const textInput = (
         <input
           autoFocus
           className={`${textField} max-w-[420px]`}
@@ -375,6 +478,20 @@ export default function SpecsStep({
           value={value === TO_DEFINE ? '' : (line.specs[field.label] ?? '')}
         />
       );
+      body =
+        standard.length > 0 ? (
+          <ComboInput
+            key={qKey}
+            onChange={(next) => setThis(field.label, next)}
+            onEnter={() => canContinue && goToQuestion(index + 1)}
+            onPick={(option) => answerAndAdvance(() => setThis(field.label, option))}
+            options={standard}
+            placeholder={field.placeholder ?? ''}
+            value={value === TO_DEFINE ? '' : (line.specs[field.label] ?? '')}
+          />
+        ) : (
+          textInput
+        );
       if (field.type === 'textarea') {
         body = (
           <textarea
@@ -445,7 +562,7 @@ export default function SpecsStep({
         </div>
       ) : null}
 
-      <section className="overflow-hidden rounded-2xl border-2 border-[#1f5bff] bg-white">
+      <section className="rounded-2xl border-2 border-[#1f5bff] bg-white">
         {/* Encabezado del producto con avance */}
         <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-3.5">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#f3f6fc]">
@@ -471,6 +588,8 @@ export default function SpecsStep({
             <h2 className="mt-1 text-[22px] font-extrabold tracking-[-0.02em] text-slate-950">{questionTitle(question, line)}</h2>
             {question.kind === 'field' && (question.field.type === 'choices' || question.field.type === 'segmented') ? (
               <p className="mt-1 text-[14px] text-slate-500">Elegí una de las opciones estándar o escribí la tuya.</p>
+            ) : question.kind === 'field' && question.field.type === 'input' && question.field.options.length > 0 ? (
+              <p className="mt-1 text-[14px] text-slate-500">Escribilo o elegilo de la lista de valores estándar.</p>
             ) : null}
             <div className="mt-5">{body}</div>
             {showErrors && required && !answered ? <p className="mt-3 text-[13.5px] font-medium text-rose-600">Esta respuesta es obligatoria.</p> : null}

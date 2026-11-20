@@ -180,26 +180,6 @@ function getFulfillmentLabel(status: OrderFulfillmentStatus) {
   return 'Entregada';
 }
 
-function getFulfillmentTone(status: OrderFulfillmentStatus) {
-  if (status === 'CONFIRMED') {
-    return 'bg-[#dbe6ff] text-indigo-800';
-  }
-
-  if (status === 'IN_PRODUCTION') {
-    return 'bg-orange-100 text-orange-800';
-  }
-
-  if (status === 'DISPATCHED') {
-    return 'bg-teal-100 text-teal-800';
-  }
-
-  if (status === 'DELIVERED') {
-    return 'bg-emerald-100 text-emerald-800';
-  }
-
-  return 'bg-[#dbe6ff] text-violet-800';
-}
-
 const FULFILLMENT_STEPS: OrderFulfillmentStatus[] = [
   'ISSUED',
   'CONFIRMED',
@@ -456,6 +436,29 @@ export default function BuyerRequestDetailPage() {
     }
   }
 
+  // Asignar la compra desde el bloque de "próximo paso", sin ir al comparador.
+  const [awardingId, setAwardingId] = useState<string | null>(null);
+  async function handleAward(quote: QuoteRecord) {
+    if (!session?.accessToken || !request) return;
+    const name = quote.supplierCompany?.name ?? 'este proveedor';
+    const confirmed = window.confirm(
+      `Vas a asignarle la compra a ${name} por ${formatCurrency(quote.amount, quote.currency)}.\n\nLas demás cotizaciones quedarán rechazadas y la solicitud se cerrará para nuevas propuestas.`,
+    );
+    if (!confirmed) return;
+    try {
+      setAwardingId(quote.id);
+      setError(null);
+      setMessage(null);
+      await atarApi.awardQuote(request.id, { quoteId: quote.id }, session.accessToken);
+      await syncRequestState(session.accessToken);
+      setMessage(`Le asignaste la compra a ${name}. Ahora emití la orden de compra.`);
+    } catch (awardError) {
+      setError(awardError instanceof Error ? awardError.message : 'No se pudo asignar la compra.');
+    } finally {
+      setAwardingId(null);
+    }
+  }
+
   async function handleProgress(action: 'START_NEGOTIATION' | 'ISSUE_ORDER' | 'CONFIRM_RECEIPT') {
     if (!session?.accessToken || !request) {
       return;
@@ -571,15 +574,16 @@ export default function BuyerRequestDetailPage() {
     if (awardedQuote) {
       if (request.status === 'ORDER_ISSUED') {
         return {
-          title: 'Pedido en curso',
-          text: 'El proveedor está preparando tu pedido. Seguí su avance y confirmá la recepción cuando llegue.',
-          action: { label: 'Ver seguimiento', href: '#orden' },
+          title: request.order?.fulfillmentStatus === 'DELIVERED' ? 'Pedido entregado' : 'Pedido en curso',
+          text:
+            request.order?.fulfillmentStatus === 'DELIVERED'
+              ? 'El proveedor marcó el pedido como entregado. Confirmá la recepción para cerrar la operación.'
+              : 'El proveedor está preparando tu pedido. Acá ves en qué etapa está.',
         };
       }
       return {
         title: 'Compra asignada',
         text: 'Emití la orden de compra para que el proveedor empiece a preparar el pedido.',
-        action: { label: 'Emitir la orden', href: '#orden' },
       };
     }
     if (comparableQuotes.length === 0) {
@@ -594,8 +598,8 @@ export default function BuyerRequestDetailPage() {
       title: allIn ? 'Ya podés decidir' : `Recibiste ${comparableQuotes.length} ${plural}`,
       text:
         comparableQuotes.length > 1
-          ? `${allIn ? `Llegaron las ${comparableQuotes.length} propuestas.` : 'Todavía pueden llegar más.'} Comparalas lado a lado y asigná la compra cuando estés listo.`
-          : 'Revisala en detalle y asigná la compra cuando estés listo, o esperá a que respondan los demás.',
+          ? `${allIn ? `Llegaron las ${comparableQuotes.length} propuestas.` : 'Todavía pueden llegar más.'} Asigná la compra a la que elijas o comparalas lado a lado.`
+          : 'Asignale la compra o esperá a que respondan los demás.',
       action: { label: comparableQuotes.length > 1 ? 'Abrir comparador' : 'Revisar propuesta', href: compareHref },
     };
   }, [request, requestId, awardedQuote, comparableQuotes.length, invitedCount, respondedCount]);
@@ -1016,50 +1020,116 @@ export default function BuyerRequestDetailPage() {
             </div>
             {!awardedQuote && comparableQuotes.length > 0 ? (
               <div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
-                {comparableQuotes.slice(0, 3).map((quote) => (
-                  <Link
-                    key={quote.id}
-                    className="min-w-0 rounded-[12px] border border-white/20 bg-white/10 px-3.5 py-3 transition hover:bg-white/15"
-                    href={`/dashboard/comprador/cotizaciones/${quote.id}`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="truncate text-[12.5px] text-[#c4d4ff]">{quote.supplierCompany?.name ?? 'Proveedor'}</span>
-                      {comparableQuotes.length > 1 && quote.id === bestPrice?.id ? (
-                        <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Mejor precio</span>
-                      ) : quote.id === fastest?.id ? (
-                        <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">Más rápida</span>
-                      ) : null}
-                    </div>
-                    <p className="mt-1.5 text-[17px] font-extrabold tabular-nums">{formatCurrency(quote.amount, quote.currency)}</p>
-                    <p className="truncate text-[12px] text-[#c4d4ff]">
-                      {typeof quote.leadTimeDays === 'number' ? `${quote.leadTimeDays} días` : 'Plazo a convenir'}
-                      {quote.paymentTerms ? ` · ${quote.paymentTerms}` : ''}
-                    </p>
-                    {(() => {
-                      const coverage = coverageOf(quote, request.items ?? []);
-                      return coverage.kind === 'partial' ? (
-                        <p className="mt-1 text-[12px] font-semibold text-amber-200">
-                          Cotiza {coverage.covered} de {coverage.total} productos
+                {comparableQuotes.slice(0, 3).map((quote) => {
+                  const coverage = coverageOf(quote, request.items ?? []);
+                  return (
+                    <div key={quote.id} className="flex min-w-0 flex-col rounded-[12px] border border-white/20 bg-white/10 px-3.5 py-3">
+                      <Link className="min-w-0 transition hover:opacity-90" href={`/dashboard/comprador/cotizaciones/${quote.id}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-[12.5px] text-[#c4d4ff]">{quote.supplierCompany?.name ?? 'Proveedor'}</span>
+                          {comparableQuotes.length > 1 && quote.id === bestPrice?.id ? (
+                            <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Mejor precio</span>
+                          ) : quote.id === fastest?.id ? (
+                            <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">Más rápida</span>
+                          ) : null}
+                        </div>
+                        <p className="mt-1.5 text-[17px] font-extrabold tabular-nums">{formatCurrency(quote.amount, quote.currency)}</p>
+                        <p className="truncate text-[12px] text-[#c4d4ff]">
+                          {typeof quote.leadTimeDays === 'number' ? `${quote.leadTimeDays} días` : 'Plazo a convenir'}
+                          {quote.paymentTerms ? ` · ${quote.paymentTerms}` : ''}
                         </p>
-                      ) : null;
-                    })()}
-                  </Link>
-                ))}
+                        {coverage.kind === 'partial' ? (
+                          <p className="mt-1 text-[12px] font-semibold text-amber-200">
+                            Cotiza {coverage.covered} de {coverage.total} productos
+                          </p>
+                        ) : null}
+                      </Link>
+                      <button
+                        className="mt-3 inline-flex h-9 items-center justify-center rounded-[9px] bg-white text-[13px] font-bold text-[#1238d6] transition hover:bg-[#eef3ff] disabled:opacity-60"
+                        disabled={Boolean(awardingId)}
+                        onClick={() => void handleAward(quote)}
+                        type="button"
+                      >
+                        {awardingId === quote.id ? 'Asignando…' : 'Asignar compra'}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             ) : awardedQuote ? (
-              <div className="flex flex-1 items-center gap-3 rounded-[12px] border border-white/20 bg-white/10 px-4 py-3.5">
-                <SupplierAvatar name={awardedQuote.supplierCompany?.name} size={44} />
-                <div className="min-w-0">
-                  <p className="truncate text-[15px] font-bold">{awardedQuote.supplierCompany?.name ?? 'Proveedor'}</p>
-                  <p className="text-[13px] text-[#c4d4ff]">
-                    {formatCurrency(awardedQuote.amount, awardedQuote.currency)}
-                    {typeof awardedQuote.leadTimeDays === 'number' ? ` · ${awardedQuote.leadTimeDays} días` : ''}
-                    {request.order ? ` · ${getFulfillmentLabel(request.order.fulfillmentStatus)}` : ''}
-                  </p>
+              <div className="flex flex-1 flex-col gap-3 rounded-[12px] border border-white/20 bg-white/10 px-4 py-3.5">
+                <div className="flex items-center gap-3">
+                  <SupplierAvatar name={awardedQuote.supplierCompany?.name} size={44} />
+                  <div className="min-w-0">
+                    <p className="truncate text-[15px] font-bold">{awardedQuote.supplierCompany?.name ?? 'Proveedor'}</p>
+                    <p className="text-[13px] text-[#c4d4ff]">
+                      {formatCurrency(awardedQuote.amount, awardedQuote.currency)}
+                      {typeof awardedQuote.leadTimeDays === 'number' ? ` · ${awardedQuote.leadTimeDays} días` : ''}
+                      {request.order?.orderNumber ? ` · Orden ${request.order.orderNumber}` : ''}
+                    </p>
+                  </div>
+                  <Link className="ml-auto hidden shrink-0 text-[13px] font-semibold text-white underline-offset-4 hover:underline sm:block" href={compareHref}>
+                    Ver comparación
+                  </Link>
                 </div>
-                <Link className="ml-auto hidden shrink-0 text-[13px] font-semibold text-white underline-offset-4 hover:underline sm:block" href={compareHref}>
-                  Ver comparación
-                </Link>
+
+                {/* Compra asignada: emitir la orden acá mismo. */}
+                {request.status === 'AWARDED' || request.status === 'NEGOTIATING' ? (
+                  <div className="flex flex-wrap items-center gap-2 border-t border-white/15 pt-3">
+                    <button
+                      className="inline-flex h-10 items-center justify-center rounded-[10px] bg-white px-4 text-[13.5px] font-bold text-[#1238d6] transition hover:bg-[#eef3ff] disabled:opacity-60"
+                      disabled={Boolean(progressingAction)}
+                      onClick={() => void handleProgress('ISSUE_ORDER')}
+                      type="button"
+                    >
+                      {progressingAction === 'ISSUE_ORDER' ? 'Emitiendo…' : 'Emitir orden de compra'}
+                    </button>
+                    {request.status === 'AWARDED' ? (
+                      <button
+                        className="inline-flex h-10 items-center justify-center rounded-[10px] border border-white/40 px-4 text-[13.5px] font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
+                        disabled={Boolean(progressingAction)}
+                        onClick={() => void handleProgress('START_NEGOTIATION')}
+                        type="button"
+                      >
+                        {progressingAction === 'START_NEGOTIATION' ? 'Iniciando…' : 'Negociar antes'}
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {/* Orden emitida: avance del pedido y confirmación de recepción. */}
+                {request.status === 'ORDER_ISSUED' && request.order ? (
+                  <div className="border-t border-white/15 pt-3">
+                    <div className="flex items-end gap-1.5">
+                      {FULFILLMENT_STEPS.map((step, index) => {
+                        const done = index <= fulfillmentIndex;
+                        return (
+                          <div key={step} className="flex flex-1 flex-col items-center gap-1.5">
+                            <span className={`h-1.5 w-full rounded-full ${done ? 'bg-white' : 'bg-white/25'}`} />
+                            <span className={`text-center text-[11px] font-semibold leading-tight ${done ? 'text-white' : 'text-[#c4d4ff]'}`}>
+                              {getFulfillmentLabel(step)}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {request.order.fulfillmentStatus === 'DELIVERED' ? (
+                        <button
+                          className="inline-flex h-10 items-center justify-center rounded-[10px] bg-emerald-500 px-4 text-[13.5px] font-bold text-white transition hover:bg-emerald-600 disabled:opacity-60"
+                          disabled={Boolean(progressingAction)}
+                          onClick={() => void handleProgress('CONFIRM_RECEIPT')}
+                          type="button"
+                        >
+                          {progressingAction === 'CONFIRM_RECEIPT' ? 'Confirmando…' : 'Confirmar recepción'}
+                        </button>
+                      ) : null}
+                      <a className="text-[13px] font-semibold text-white underline-offset-4 hover:underline" href="#orden">
+                        Datos de la orden
+                      </a>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </section>
@@ -1208,84 +1278,12 @@ export default function BuyerRequestDetailPage() {
               )}
             </section>
 
-            {/* ==================== ORDEN Y CUMPLIMIENTO ==================== */}
-            {awardedQuote ? (
+            {/* ==================== DATOS DE LA ORDEN ==================== */}
+            {/* El avance del pedido y sus acciones están arriba, en "próximo paso". */}
+            {request?.status === 'ORDER_ISSUED' && request?.order ? (
               <section id="orden" className="scroll-mt-24 rounded-[16px] border border-slate-300 bg-white p-4 sm:p-5">
-                <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">Orden y cumplimiento</h2>
-
-                {request?.status === 'AWARDED' || request?.status === 'NEGOTIATING' ? (
-                  <div className="mt-3">
-                    <p className="text-[13.5px] leading-6 text-slate-600">
-                      Ya asignaste la compra a <span className="font-semibold text-slate-900">{awardedQuote.supplierCompany?.name ?? 'el proveedor'}</span>. Emití la orden de compra para que el proveedor pueda empezar a preparar el pedido y puedas seguir su cumplimiento.
-                    </p>
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      {request?.status === 'AWARDED' ? (
-                        <button
-                          className="inline-flex h-10 items-center justify-center rounded-[11px] border border-slate-300 bg-white px-4 text-[13px] font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={Boolean(progressingAction)}
-                          onClick={() => void handleProgress('START_NEGOTIATION')}
-                          type="button"
-                        >
-                          {progressingAction === 'START_NEGOTIATION' ? 'Iniciando...' : 'Iniciar negociación'}
-                        </button>
-                      ) : null}
-                      <button
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-[11px] bg-[#1f5bff] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(31,91,255,0.22)] transition hover:bg-[#1747d6] disabled:cursor-not-allowed disabled:opacity-60"
-                        disabled={Boolean(progressingAction)}
-                        onClick={() => void handleProgress('ISSUE_ORDER')}
-                        type="button"
-                      >
-                        {progressingAction === 'ISSUE_ORDER' ? 'Emitiendo...' : 'Emitir orden de compra'}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-
-                {request?.status === 'ORDER_ISSUED' && request?.order ? (
-                  <div className="mt-3 space-y-4">
-                    <div className="rounded-[12px] border border-slate-200 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-[13px] font-bold text-slate-900">Orden {request.order.orderNumber}</p>
-                          <p className="mt-0.5 text-[13px] text-slate-600">Seguimiento del cumplimiento a cargo del proveedor.</p>
-                        </div>
-                        <span className={`inline-flex rounded-full px-3 py-1 text-[12px] font-semibold ${getFulfillmentTone(request.order.fulfillmentStatus)}`}>
-                          {getFulfillmentLabel(request.order.fulfillmentStatus)}
-                        </span>
-                      </div>
-                      <div className="mt-4 flex items-end gap-1.5">
-                        {FULFILLMENT_STEPS.map((step, index) => {
-                          const done = index <= fulfillmentIndex;
-                          return (
-                            <div key={step} className="flex flex-1 flex-col items-center gap-1.5">
-                              <span className={`h-1.5 w-full rounded-full ${done ? 'bg-[#1f5bff]' : 'bg-slate-200'}`} />
-                              <span className={`text-center text-[11px] font-semibold leading-tight ${done ? 'text-[#1f5bff]' : 'text-slate-500'}`}>
-                                {getFulfillmentLabel(step)}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {request.order.fulfillmentStatus === 'DELIVERED' ? (
-                      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[12px] border border-emerald-200 bg-emerald-50 p-4">
-                        <p className="text-[13.5px] leading-6 text-emerald-800">
-                          El proveedor marcó el pedido como <span className="font-semibold">entregado</span>. Confirmá la recepción para cerrar la operación.
-                        </p>
-                        <button
-                          className="inline-flex h-10 items-center justify-center rounded-[11px] bg-emerald-600 px-4 text-[13px] font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
-                          disabled={Boolean(progressingAction)}
-                          onClick={() => void handleProgress('CONFIRM_RECEIPT')}
-                          type="button"
-                        >
-                          {progressingAction === 'CONFIRM_RECEIPT' ? 'Confirmando...' : 'Confirmar recepción'}
-                        </button>
-                      </div>
-                    ) : null}
-
-                    <form className="rounded-[12px] border border-slate-200 p-4" onSubmit={handleSaveOrder}>
-                      <p className="text-[14px] font-semibold text-slate-900">Datos de la orden</p>
+                <h2 className="text-[17px] font-extrabold tracking-[-0.02em]">Datos de la orden {request.order.orderNumber}</h2>
+                    <form onSubmit={handleSaveOrder}>
                       <p className="mt-1 text-[12px] text-slate-500">Información operativa para tu registro y el del proveedor.</p>
                       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <label className="block">
@@ -1325,14 +1323,6 @@ export default function BuyerRequestDetailPage() {
                         </button>
                       </div>
                     </form>
-                  </div>
-                ) : null}
-
-                {request?.status === 'COMPLETED' ? (
-                  <p className="mt-3 rounded-[12px] border border-emerald-200 bg-emerald-50 p-4 text-[13.5px] leading-6 text-emerald-800">
-                    Confirmaste la recepción del pedido{request?.order?.orderNumber ? ` (${request.order.orderNumber})` : ''}. El ciclo de esta solicitud está cerrado.
-                  </p>
-                ) : null}
               </section>
             ) : null}
 

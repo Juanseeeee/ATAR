@@ -15,6 +15,7 @@ import {
   startDraftWith,
   type ProductLine,
 } from '@/lib/new-request';
+import { ATARIA_PENDING_KEY } from '@/components/marketing/public-ataria-chat';
 import { FALLBACK_REQUEST_CATEGORIES } from '@/lib/request-catalog-fallback';
 import { getCategoryUnits } from '@/lib/request-units';
 import { StartIcon } from './start-screen';
@@ -132,6 +133,23 @@ export function AtariaFlow() {
   const [text, setText] = useState('');
   const [sent, setSent] = useState<string | null>(null);
   const [lines, setLines] = useState<ProductLine[] | null>(null);
+
+  // Si antes de registrarse le contó a ATARIA qué necesitaba (en la web
+  // pública), ese texto queda cargado para enviarlo.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        const pending = window.localStorage.getItem(ATARIA_PENDING_KEY);
+        if (pending) {
+          setText(pending);
+          window.localStorage.removeItem(ATARIA_PENDING_KEY);
+        }
+      } catch {
+        // Sin almacenamiento: no hay nada que retomar.
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   function send() {
     const message = text.trim();

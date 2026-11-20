@@ -9,6 +9,7 @@ import { useRegion } from '@/components/region/region-provider';
 import { SupplierAvatar } from '@/components/quotes/supplier-avatar';
 import { atarApi, type RequestCatalogCategoryRecord, type RequestCatalogFieldRecord } from '@/lib/atar-api';
 import {
+  CATEGORY_GROUPS,
   categoryIconFor,
   clearDraft,
   deliveryWhenLabel,
@@ -136,7 +137,7 @@ export default function RequestWizard() {
   const { session } = useAuth();
   // Nombre del rubro como se dice en el país del usuario (el valor guardado
   // sigue siendo el nombre canónico del catálogo).
-  const { categoryName } = useRegion();
+  const { categoryName, region } = useRegion();
 
   const [draft, setDraft] = useState<NewRequestDraft>(emptyDraft);
   const [ready, setReady] = useState(false);
@@ -147,6 +148,8 @@ export default function RequestWizard() {
   const [providers, setProviders] = useState<ProviderDirectoryItem[] | null>(null);
   const [prefillSupplierNames, setPrefillSupplierNames] = useState<string[]>([]);
   const [catalogQuery, setCatalogQuery] = useState('');
+  // Familia abierta en el paso 1 (null = las 5 familias).
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
   const [providerQuery, setProviderQuery] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -317,14 +320,38 @@ export default function RequestWizard() {
 
   const visibleCategories = useMemo(() => {
     const query = catalogQuery.trim().toLowerCase();
+    // Solo los rubros de las 5 familias (los demás no se ofrecen al iniciar).
+    const offered = new Set(CATEGORY_GROUPS.flatMap((group) => group.categories));
     return categories.filter(
       (category) =>
-        category.label !== CUSTOM &&
+        offered.has(category.label) &&
         (!query ||
           category.label.toLowerCase().includes(query) ||
           (category.searchKeywords ?? []).some((keyword) => keyword.toLowerCase().includes(query))),
     );
   }, [catalogQuery, categories]);
+
+  // Las 5 familias con sus rubros del catálogo (los que existen).
+  const groups = useMemo(
+    () =>
+      CATEGORY_GROUPS.map((group) => ({
+        ...group,
+        // En Argentina: "Bolsones/Bigbags" y "Bolsas/Envases de rafia"; en el resto, el nombre de rubro del país.
+        name:
+          group.id === 'bigbags'
+            ? region === 'AR'
+              ? 'Bolsones/Bigbags'
+              : categoryName('Big Bags')
+            : group.id === 'bolsas'
+              ? region === 'AR'
+                ? 'Bolsas/Envases de rafia'
+                : categoryName('Bolsas PP')
+              : group.label,
+        items: group.categories.map((label) => categories.find((category) => category.label === label)).filter((item): item is RequestCatalogCategoryRecord => Boolean(item)),
+      })).filter((group) => group.items.length > 0),
+    [categories, categoryName, region],
+  );
+  const currentGroup = groups.find((group) => group.id === openGroup) ?? null;
 
   // ---------- Acciones ----------
   function update(patch: Partial<NewRequestDraft>) {
@@ -554,6 +581,33 @@ export default function RequestWizard() {
     </nav>
   );
 
+  // Tarjeta de un rubro del catálogo (se marca y desmarca al tocarla).
+  function renderCategoryTile(category: RequestCatalogCategoryRecord) {
+    const selected = products.some((line) => line.category === category.label);
+    return (
+      <button
+        key={category.id}
+        aria-pressed={selected}
+        className={`relative flex flex-col items-center rounded-2xl border p-4 text-center transition ${
+          selected ? 'border-[#1f5bff] bg-[#f5f8ff] shadow-[0_0_0_3px_rgba(31,91,255,0.10)]' : 'border-slate-200 hover:border-[#9db4ff] hover:bg-[#fafbff]'
+        }`}
+        onClick={() => toggleCategory(category)}
+        type="button"
+      >
+        <span
+          className={`absolute right-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full ${
+            selected ? 'bg-[#1847ff] text-white' : 'border border-slate-300 bg-white text-transparent'
+          }`}
+        >
+          <Icon className="h-3.5 w-3.5" name="check" />
+        </span>
+        <Image alt="" className="h-16 w-16 object-contain" height={64} src={categoryIconFor(category.label)} width={64} />
+        <span className="mt-2 text-[14px] font-bold leading-tight text-slate-900 [overflow-wrap:anywhere]">{categoryName(category.label)}</span>
+        {category.subtitle ? <span className="mt-0.5 line-clamp-1 text-[12px] text-slate-500">{category.subtitle}</span> : null}
+      </button>
+    );
+  }
+
   // ---------- Paso 1: Productos ----------
   const productsStep = (
     <div className={`${card} p-5`} data-tour="wizard-catalog">
@@ -567,33 +621,67 @@ export default function RequestWizard() {
           value={catalogQuery}
         />
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
-        {visibleCategories.map((category) => {
-          const selected = products.some((line) => line.category === category.label);
-          return (
-            <button
-              key={category.id}
-              aria-pressed={selected}
-              className={`relative flex flex-col items-center rounded-2xl border p-4 text-center transition ${
-                selected ? 'border-[#1f5bff] bg-[#f5f8ff] shadow-[0_0_0_3px_rgba(31,91,255,0.10)]' : 'border-slate-200 hover:border-[#9db4ff] hover:bg-[#fafbff]'
-              }`}
-              onClick={() => toggleCategory(category)}
-              type="button"
-            >
-              <span
-                className={`absolute right-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full ${
-                  selected ? 'bg-[#1847ff] text-white' : 'border border-slate-300 bg-white text-transparent'
+      {catalogQuery.trim() ? (
+        // Buscando: todos los rubros que coinciden, sin familias.
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
+          {visibleCategories.map(renderCategoryTile)}
+        </div>
+      ) : currentGroup ? (
+        <div className="mt-4">
+          <button
+            className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-[13.5px] font-semibold text-slate-500 transition hover:bg-slate-100 hover:text-slate-800"
+            onClick={() => setOpenGroup(null)}
+            type="button"
+          >
+            <Icon className="h-4 w-4" name="chev-left" />
+            Todas las categorías
+          </button>
+          <p className="mt-2 text-[16px] font-bold text-slate-950">{currentGroup.name}</p>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">{currentGroup.items.map(renderCategoryTile)}</div>
+        </div>
+      ) : (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {groups.map((group) => {
+            const single = group.items.length === 1 ? group.items[0] : null;
+            const chosen = group.items.filter((item) => products.some((line) => line.category === item.label)).length;
+            return (
+              <button
+                key={group.id}
+                aria-pressed={single ? chosen > 0 : undefined}
+                className={`flex items-center gap-3.5 rounded-2xl border p-3.5 text-left transition ${
+                  chosen > 0 ? 'border-[#1f5bff] bg-[#f5f8ff] shadow-[0_0_0_3px_rgba(31,91,255,0.10)]' : 'border-slate-200 hover:border-[#9db4ff] hover:bg-[#fafbff]'
                 }`}
+                onClick={() => (single ? toggleCategory(single) : setOpenGroup(group.id))}
+                type="button"
               >
-                <Icon className="h-3.5 w-3.5" name="check" />
-              </span>
-              <Image alt="" className="h-16 w-16 object-contain" height={64} src={categoryIconFor(category.label)} width={64} />
-              <span className="mt-2 text-[14px] font-bold leading-tight text-slate-900 [overflow-wrap:anywhere]">{categoryName(category.label)}</span>
-              {category.subtitle ? <span className="mt-0.5 line-clamp-1 text-[12px] text-slate-500">{category.subtitle}</span> : null}
-            </button>
-          );
-        })}
-      </div>
+                <Image alt="" className="h-14 w-14 shrink-0 object-contain" height={56} src={group.icon} width={56} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-bold leading-tight text-slate-900">{group.name}</span>
+                  <span className="mt-0.5 block truncate text-[12.5px] text-slate-500">
+                    {single ? single.subtitle : group.items.map((item) => categoryName(item.label)).join(', ')}
+                  </span>
+                </span>
+                {single ? (
+                  <span
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
+                      chosen > 0 ? 'bg-[#1847ff] text-white' : 'border border-slate-300 bg-white text-transparent'
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" name="check" />
+                  </span>
+                ) : (
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    {chosen > 0 ? (
+                      <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-[#1847ff] px-1.5 text-[12px] font-bold text-white">{chosen}</span>
+                    ) : null}
+                    <Icon className="h-4 w-4 text-[#1238d6]" name="chev-right" />
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <button
         className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-dashed border-slate-300 px-4 py-3.5 text-left transition hover:border-[#1f5bff] hover:bg-[#f7f9ff]"
         onClick={addCustom}

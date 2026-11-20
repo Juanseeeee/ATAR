@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { RegionButton } from '@/components/region/region-provider';
+import type { WebSession } from '@/lib/session';
+import BuyerAccountMenu from './buyer-account-menu';
 import BuyerHomeSearch from './buyer-home-search';
 import WorkspaceSwitcher from './workspace-switcher';
 
@@ -21,11 +23,19 @@ function Icon({ name }: { name: 'bell' | 'msg' }) {
 }
 
 /**
- * Barra superior del comprador en escritorio. La navegación y la cuenta viven
- * en el menú lateral (BuyerSidebar); acá quedan el buscador y los accesos
- * rápidos. Alto fijo de 64 px: las vistas a pantalla completa lo descuentan.
+ * Barra superior del comprador en escritorio. La navegación vive en el menú
+ * lateral (BuyerSidebar); acá quedan el buscador, los accesos rápidos y el
+ * menú de perfil. Alto fijo de 64 px: las vistas a pantalla completa lo descuentan.
  */
-export default function BuyerMarketplaceHeader({ notificationCount = 0 }: { notificationCount?: number }) {
+export default function BuyerMarketplaceHeader({
+  notificationCount = 0,
+  messageCount = 0,
+  session = null,
+}: {
+  notificationCount?: number;
+  messageCount?: number;
+  session?: WebSession | null;
+}) {
   const iconButton =
     'relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-300 bg-white text-slate-700 transition hover:bg-slate-50';
 
@@ -41,6 +51,11 @@ export default function BuyerMarketplaceHeader({ notificationCount = 0 }: { noti
           <RegionButton />
           <Link aria-label="Mensajes" className={iconButton} href="/dashboard/comprador/mensajes" title="Mensajes">
             <Icon name="msg" />
+            {messageCount > 0 ? (
+              <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-white bg-[#1847ff] px-1 text-[10px] font-bold text-white">
+                {Math.min(messageCount, 9)}
+              </span>
+            ) : null}
           </Link>
           <Link aria-label="Notificaciones" className={iconButton} href="/dashboard/comprador/notificaciones" title="Notificaciones">
             <Icon name="bell" />
@@ -50,6 +65,7 @@ export default function BuyerMarketplaceHeader({ notificationCount = 0 }: { noti
               </span>
             ) : null}
           </Link>
+          <BuyerAccountMenu session={session} />
         </div>
       </div>
     </header>

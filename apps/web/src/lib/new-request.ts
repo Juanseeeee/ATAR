@@ -222,13 +222,30 @@ const CATEGORY_ICONS: Record<string, string> = {
   'hilo multifilamento de pp': '/categorias/ico-hilos.png',
   'hilo retorcido y mallas': '/categorias/ico-hilos.png',
   maquinarias: '/categorias/ico-maquinaria.png',
-  'a medida': '/amedida.png',
+  'a medida': '/categorias/ico-amedida.png',
 };
 
 /** Ícono del rubro (los mismos del inicio). */
 export function categoryIconFor(category: string | null | undefined) {
   return CATEGORY_ICONS[(category ?? '').toLowerCase()] ?? '/categorias/ico-bolsas.png';
 }
+
+/**
+ * Las 5 familias del paso "Productos" de la solicitud. Cada una agrupa rubros
+ * del catálogo (sus subcategorías); si tiene uno solo, se elige directo.
+ */
+export const CATEGORY_GROUPS: { id: string; label: string; icon: string; categories: string[] }[] = [
+  { id: 'bigbags', label: 'Big Bags', icon: '/categorias/ico-bigbags.png', categories: ['Big Bags'] },
+  { id: 'bolsas', label: 'Bolsas', icon: '/categorias/ico-bolsas.png', categories: ['Bolsas PP'] },
+  { id: 'telas', label: 'Telas', icon: '/categorias/ico-telas.png', categories: ['Telas Tubulares', 'Telas planas'] },
+  {
+    id: 'insumos',
+    label: 'Insumos',
+    icon: '/categorias/ico-hilos.png',
+    categories: ['Hilo multifilamento de PP', 'Hilo retorcido y Mallas', 'Cuerdas/Cordones', 'Cintas/Cintillas', 'Tintas', 'Fotopolímeros'],
+  },
+  { id: 'maquinaria', label: 'Maquinaria', icon: '/categorias/ico-maquinaria.png', categories: ['Maquinarias'] },
+];
 
 export function deliveryWhenLabel(draft: Pick<NewRequestDraft, 'when' | 'date'>) {
   if (draft.when === '15') return 'En 15 días';

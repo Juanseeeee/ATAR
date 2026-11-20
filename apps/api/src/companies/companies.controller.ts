@@ -4,6 +4,7 @@ import { ActiveCompanyId } from '../auth/decorators/active-company.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CompaniesService } from './companies.service';
+import { CreateCustomerNoteDto } from './dto/create-customer-note.dto';
 import { UpdateSupplierProfileDto } from './dto/update-supplier-profile.dto';
 
 @UseGuards(JwtAuthGuard)
@@ -74,6 +75,35 @@ export class CompaniesController {
   @Get('opportunities')
   opportunities(@CurrentUser() user: AuthUser, @ActiveCompanyId() activeCompanyId?: string) {
     return this.companiesService.opportunities(user, activeCompanyId);
+  }
+
+  /** Anotaciones internas del equipo sobre un cliente. */
+  @Get('customers/:buyerCompanyId/notes')
+  customerNotes(
+    @CurrentUser() user: AuthUser,
+    @Param('buyerCompanyId') buyerCompanyId: string,
+    @ActiveCompanyId() activeCompanyId?: string,
+  ) {
+    return this.companiesService.customerNotes(user, buyerCompanyId, activeCompanyId);
+  }
+
+  @Post('customers/:buyerCompanyId/notes')
+  addCustomerNote(
+    @CurrentUser() user: AuthUser,
+    @Param('buyerCompanyId') buyerCompanyId: string,
+    @Body() dto: CreateCustomerNoteDto,
+    @ActiveCompanyId() activeCompanyId?: string,
+  ) {
+    return this.companiesService.addCustomerNote(user, buyerCompanyId, dto.body, activeCompanyId);
+  }
+
+  @Delete('customers/:buyerCompanyId/notes/:noteId')
+  deleteCustomerNote(
+    @CurrentUser() user: AuthUser,
+    @Param('noteId') noteId: string,
+    @ActiveCompanyId() activeCompanyId?: string,
+  ) {
+    return this.companiesService.deleteCustomerNote(user, noteId, activeCompanyId);
   }
 
   @Get('customers/:buyerCompanyId')

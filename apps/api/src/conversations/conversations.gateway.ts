@@ -105,18 +105,14 @@ export class ConversationsGateway implements OnGatewayConnection {
       throw new WsException('La conversacion no existe.');
     }
 
-    const buyerCompanyId = user.memberships.find(
-      (item: AuthUser['memberships'][number]) => item.role === MembershipRole.BUYER,
-    )?.companyId;
-    const supplierCompanyId = user.memberships.find(
-      (item: AuthUser['memberships'][number]) => item.role === MembershipRole.SUPPLIER,
-    )?.companyId;
-    const hasAccess =
-      user.memberships.some(
-        (item: AuthUser['memberships'][number]) => item.role === MembershipRole.ADMIN,
-      ) ||
-      buyerCompanyId === conversation.buyerCompanyId ||
-      supplierCompanyId === conversation.supplierCompanyId;
+    // Acceso si alguna empresa del usuario es una de las dos de la conversación
+    // (sirve también para vendedores y para los chats directos entre proveedoras).
+    const hasAccess = user.memberships.some(
+      (item: AuthUser['memberships'][number]) =>
+        item.role === MembershipRole.ADMIN ||
+        item.companyId === conversation.buyerCompanyId ||
+        item.companyId === conversation.supplierCompanyId,
+    );
 
     if (!hasAccess) {
       throw new WsException('No tenes acceso a esta conversacion.');
@@ -242,23 +238,20 @@ export class ConversationsGateway implements OnGatewayConnection {
       throw new WsException('La conversacion no existe.');
     }
 
-    const buyerCompanyId = user.memberships.find(
-      (item: AuthUser['memberships'][number]) => item.role === MembershipRole.BUYER,
-    )?.companyId;
-    if (buyerCompanyId && buyerCompanyId === conversation.buyerCompanyId) {
+    // El lado se decide por empresa: buyerCompanyId es el lado "BUYER" (en un
+    // chat directo, la proveedora que lo inició) y supplierCompanyId el otro.
+    const companyIds = user.memberships.map((item: AuthUser['memberships'][number]) => item.companyId);
+    if (companyIds.includes(conversation.buyerCompanyId)) {
       return {
         role: MembershipRole.BUYER,
-        companyId: buyerCompanyId,
+        companyId: conversation.buyerCompanyId,
       };
     }
 
-    const supplierCompanyId = user.memberships.find(
-      (item: AuthUser['memberships'][number]) => item.role === MembershipRole.SUPPLIER,
-    )?.companyId;
-    if (supplierCompanyId && supplierCompanyId === conversation.supplierCompanyId) {
+    if (companyIds.includes(conversation.supplierCompanyId)) {
       return {
         role: MembershipRole.SUPPLIER,
-        companyId: supplierCompanyId,
+        companyId: conversation.supplierCompanyId,
       };
     }
 

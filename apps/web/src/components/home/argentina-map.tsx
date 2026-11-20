@@ -1,3 +1,5 @@
+import { AR_PLACES } from '@/lib/ar-places';
+import { PROVINCE_SHAPES } from '@/lib/ar-provinces';
 import { ARGENTINA, inside, type Point } from './latam-map';
 
 /**
@@ -37,44 +39,8 @@ const DOTS: Point[] = (() => {
   return dots;
 })();
 
-// Ubicación (longitud, latitud) de las ciudades y provincias más habituales.
-// Una ciudad que no esté acá aparece en la lista pero no en el mapa.
-const CITIES: Record<string, Point> = {
-  'buenos aires': [-58.4, -34.6],
-  caba: [-58.4, -34.6],
-  'la plata': [-57.95, -34.92],
-  rosario: [-60.65, -32.95],
-  'santa fe': [-60.7, -31.63],
-  cordoba: [-64.18, -31.42],
-  mendoza: [-68.83, -32.89],
-  'san juan': [-68.52, -31.54],
-  'san luis': [-66.34, -33.3],
-  tucuman: [-65.22, -26.82],
-  'san miguel de tucuman': [-65.22, -26.82],
-  salta: [-65.41, -24.79],
-  jujuy: [-65.3, -24.19],
-  resistencia: [-58.99, -27.45],
-  chaco: [-58.99, -27.45],
-  corrientes: [-58.83, -27.47],
-  posadas: [-55.9, -27.37],
-  misiones: [-55.9, -27.37],
-  parana: [-60.52, -31.73],
-  'entre rios': [-59.2, -32],
-  colon: [-58.14, -32.22],
-  neuquen: [-68.06, -38.95],
-  'bahia blanca': [-62.27, -38.72],
-  'mar del plata': [-57.55, -38],
-  'la pampa': [-64.29, -36.62],
-  'santa rosa': [-64.29, -36.62],
-  bariloche: [-71.3, -41.13],
-  'rio negro': [-67.5, -40],
-  chubut: [-67.5, -43.5],
-  'comodoro rivadavia': [-67.5, -45.86],
-  'rio gallegos': [-69.22, -51.62],
-  'santa cruz': [-69.5, -49],
-  ushuaia: [-68.3, -54.8],
-  'tierra del fuego': [-68, -54],
-};
+// Ubicación de las ciudades: ver lib/ar-places.
+const CITIES = AR_PLACES;
 
 function normalize(value: string) {
   return value
@@ -84,30 +50,78 @@ function normalize(value: string) {
     .trim();
 }
 
+/**
+ * Vista de una provincia: su contorno en puntos, encuadrado como un zoom.
+ * Devuelve los puntos, el viewBox y cuánto se achicó la escala (para que
+ * marcadores y textos mantengan su tamaño en pantalla).
+ */
+function provinceView(name: string) {
+  const rings = PROVINCE_SHAPES[name];
+  if (!rings?.length) return null;
+  const all = rings.flat();
+  const lons = all.map(([lon]) => lon);
+  const lats = all.map(([, lat]) => lat);
+  const [minLon, maxLon, minLat, maxLat] = [Math.min(...lons), Math.max(...lons), Math.min(...lats), Math.max(...lats)];
+  const span = Math.max(maxLon - minLon, maxLat - minLat);
+  // Unas 26 filas de puntos a lo largo de la provincia, sea grande o chica.
+  const step = span / 26;
+  const dots: Point[] = [];
+  let row = 0;
+  for (let lat = maxLat - step / 2; lat > minLat; lat -= step * 0.87) {
+    const offset = row % 2 === 0 ? 0 : step / 2;
+    for (let lon = minLon + step / 2 + offset; lon < maxLon; lon += step) {
+      if (rings.some((ring) => inside([lon, lat], ring))) dots.push(project([lon, lat]));
+    }
+    row += 1;
+  }
+  const zoom = step / STEP;
+  const pad = span * 0.08;
+  const [x0, y0] = project([minLon - pad, maxLat + pad]);
+  const [x1, y1] = project([maxLon + pad, minLat - pad]);
+  // Lugar a la derecha para los nombres de las localidades.
+  const labels = LABEL_SPACE * zoom;
+  return { dots, zoom, viewBox: `${x0} ${y0} ${x1 - x0 + labels} ${y1 - y0}` };
+}
+
 export default function ArgentinaMap({
   cities,
   onSelect,
   selected,
+  province,
   className = '',
 }: {
-  cities: { name: string; count: number }[];
+  /** `point`: coordenadas de la localidad si no está en la tabla de ciudades conocidas. */
+  cities: { name: string; count: number; point?: { lat: number; lon: number } | null }[];
   onSelect: (city: string) => void;
   /** Ciudad activa en el filtro, para resaltar su marcador. */
   selected?: string;
+  /** Provincia elegida: el mapa muestra solo esa provincia, como un zoom. */
+  province?: string | null;
   className?: string;
 }) {
   const [malvinasX, malvinasY] = project([-58.6, -51.75]);
+  const view = province ? provinceView(province) : null;
+  const k = view?.zoom ?? 1;
   return (
-    <svg aria-label="Mapa de proveedores en Argentina" className={className} role="img" viewBox={`0 0 ${WIDTH} ${HEIGHT}`}>
-      {DOTS.map(([x, y]) => (
-        <circle key={`${x.toFixed(1)}-${y.toFixed(1)}`} cx={x} cy={y} fill="#a9bdf3" r="3.4" />
-      ))}
-      <text fill="#5b6b93" fontSize="11" fontWeight="600" letterSpacing="1" x={malvinasX + 6} y={malvinasY + 4}>
-        ISLAS MALVINAS
-      </text>
+    <svg
+      aria-label={view ? `Mapa de proveedores en ${province}` : 'Mapa de proveedores en Argentina'}
+      className={className}
+      role="img"
+      viewBox={view?.viewBox ?? `0 0 ${WIDTH} ${HEIGHT}`}
+    >
+      <g key={province ?? 'pais'} className="animate-fade-up">
+        {(view?.dots ?? DOTS).map(([x, y]) => (
+          <circle key={`${x.toFixed(2)}-${y.toFixed(2)}`} cx={x} cy={y} fill="#a9bdf3" r={3.4 * k} />
+        ))}
+        {view ? null : (
+          <text fill="#5b6b93" fontSize="11" fontWeight="600" letterSpacing="1" x={malvinasX + 6} y={malvinasY + 4}>
+            ISLAS MALVINAS
+          </text>
+        )}
+      </g>
 
       {cities.map((city, index) => {
-        const at = CITIES[normalize(city.name)];
+        const at: Point | undefined = CITIES[normalize(city.name)] ?? (city.point ? [city.point.lon, city.point.lat] : undefined);
         if (!at) {
           return null;
         }
@@ -123,9 +137,9 @@ export default function ArgentinaMap({
             tabIndex={0}
           >
             <title>{`${city.name} (${city.count})`}</title>
-            <circle className="animate-map-pulse" cx={x} cy={y} fill="#1f5bff" r="11" style={{ animationDelay: `${(index * 400) % 2400}ms` }} />
-            <circle cx={x} cy={y} fill={active ? '#0b1530' : '#1f5bff'} r="8" stroke="#fff" strokeWidth="2.5" />
-            <text fill="#0b1530" fontSize="13" fontWeight="700" letterSpacing="0.6" x={x + 14} y={y + 4.5}>
+            <circle className="animate-map-pulse" cx={x} cy={y} fill="#1f5bff" r={11 * k} style={{ animationDelay: `${(index * 400) % 2400}ms` }} />
+            <circle cx={x} cy={y} fill={active ? '#0b1530' : '#1f5bff'} r={8 * k} stroke="#fff" strokeWidth={2.5 * k} />
+            <text fill="#0b1530" fontSize={13 * k} fontWeight="700" letterSpacing={0.6 * k} x={x + 14 * k} y={y + 4.5 * k}>
               {city.name.toUpperCase()}
               <tspan fill="#5b6b93" fontWeight="500">{` · ${city.count}`}</tspan>
             </text>

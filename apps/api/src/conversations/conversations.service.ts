@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  CompanyType,
   ConversationContextType,
   MembershipRole,
   NotificationType,
@@ -248,6 +249,86 @@ export class ConversationsService {
     return this.findOne(user, conversation.id, {});
   }
 
+  /**
+   * Directorio para chats directos: las demás empresas proveedoras (y
+   * híbridas), con sus vendedores. El chat es entre empresas: lo ve todo el
+   * equipo de cada una.
+   */
+  async listContacts(user: AuthUser, activeCompanyId?: string) {
+    const ownCompanyId = this.getCompanyIdForRole(user, MembershipRole.SUPPLIER, activeCompanyId);
+    const companies = await this.prisma.company.findMany({
+      where: {
+        id: { not: ownCompanyId },
+        type: { in: [CompanyType.SUPPLIER, CompanyType.HYBRID] },
+      },
+      select: {
+        id: true,
+        name: true,
+        logoUrl: true,
+        city: true,
+        country: true,
+        supplierProfile: { select: { supplierRole: true, isVerified: true } },
+        memberships: {
+          where: { role: { in: [MembershipRole.SUPPLIER, MembershipRole.SELLER] }, user: { status: 'ACTIVE' } },
+          select: { role: true, user: { select: { firstName: true, lastName: true } } },
+        },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return companies.map((company) => ({
+      id: company.id,
+      name: company.name,
+      logoUrl: company.logoUrl,
+      city: company.city,
+      country: company.country,
+      supplierRole: company.supplierProfile?.supplierRole ?? null,
+      isVerified: company.supplierProfile?.isVerified ?? false,
+      sellers: company.memberships
+        .filter((membership) => membership.role === MembershipRole.SELLER)
+        .map((membership) => `${membership.user.firstName} ${membership.user.lastName}`.trim()),
+    }));
+  }
+
+  async getOrCreateDirect(user: AuthUser, targetCompanyId: string, activeCompanyId?: string) {
+    const ownCompanyId = this.getCompanyIdForRole(user, MembershipRole.SUPPLIER, activeCompanyId);
+    if (targetCompanyId === ownCompanyId) {
+      throw new BadRequestException('No podés abrir un chat con tu propia empresa.');
+    }
+
+    const target = await this.prisma.company.findUnique({
+      where: { id: targetCompanyId },
+      select: { id: true, type: true },
+    });
+    if (!target || target.type === CompanyType.BUYER) {
+      throw new NotFoundException('No encontramos esa empresa proveedora.');
+    }
+
+    // Un solo chat por par de empresas, lo haya iniciado cualquiera de las dos.
+    const existing = await this.prisma.conversation.findFirst({
+      where: {
+        contextType: ConversationContextType.DIRECT,
+        OR: [
+          { buyerCompanyId: ownCompanyId, supplierCompanyId: target.id },
+          { buyerCompanyId: target.id, supplierCompanyId: ownCompanyId },
+        ],
+      },
+    });
+
+    const conversation =
+      existing ??
+      (await this.prisma.conversation.create({
+        data: {
+          contextType: ConversationContextType.DIRECT,
+          contextTitle: 'Conversación directa',
+          buyerCompanyId: ownCompanyId,
+          supplierCompanyId: target.id,
+        },
+      }));
+
+    return this.findOne(user, conversation.id, {});
+  }
+
   async sendMessage(user: AuthUser, id: string, dto: SendMessageDto) {
     const trimmedBody = dto.body?.trim() ?? '';
     if (!trimmedBody && !dto.attachmentBase64) {
@@ -316,14 +397,18 @@ export class ConversationsService {
       supplierCompanyId: conversation.supplierCompanyId,
     });
 
+    const isDirect = conversation.contextType === ConversationContextType.DIRECT;
     const recipientCompanyId =
       participant.role === MembershipRole.BUYER
         ? conversation.supplierCompanyId
         : conversation.buyerCompanyId;
-    const recipientRole =
-      participant.role === MembershipRole.BUYER ? MembershipRole.SUPPLIER : MembershipRole.BUYER;
+    // En un chat directo las dos empresas son proveedoras: se avisa al equipo
+    // proveedor (y a sus vendedores) de la otra, en su bandeja de proveedor.
+    const recipientRoles = isDirect
+      ? [MembershipRole.SUPPLIER, MembershipRole.SELLER]
+      : [participant.role === MembershipRole.BUYER ? MembershipRole.SUPPLIER : MembershipRole.BUYER];
     const href =
-      participant.role === MembershipRole.BUYER
+      isDirect || participant.role === MembershipRole.BUYER
         ? `/dashboard/proveedor/mensajes?c=${id}`
         : `/dashboard/comprador/mensajes?c=${id}`;
     const senderCompanyName = participant.companyName?.trim() || 'La otra parte';
@@ -334,7 +419,7 @@ export class ConversationsService {
     void this.notificationsService
       .notifyNewMessage({
         companyId: recipientCompanyId,
-        roles: [recipientRole],
+        roles: recipientRoles,
         excludeUserId: user.userId,
         conversationId: id,
         senderCompanyName,
@@ -446,6 +531,10 @@ export class ConversationsService {
             supplierCompanyIds.length
               ? { supplierCompanyId: { in: supplierCompanyIds } }
               : undefined,
+            // Chats directos que inició una empresa proveedora del usuario.
+            supplierCompanyIds.length
+              ? { contextType: ConversationContextType.DIRECT, buyerCompanyId: { in: supplierCompanyIds } }
+              : undefined,
           ].filter(Boolean) as Prisma.ConversationWhereInput[],
         };
 
@@ -547,6 +636,8 @@ export class ConversationsService {
             id: true,
             name: true,
             logoUrl: true,
+            city: true,
+            country: true,
           },
         })
       : [];
@@ -579,11 +670,16 @@ export class ConversationsService {
         // El chat muestra el logo de la contraparte en el encabezado y en cada
         // burbuja recibida.
         buyerCompanyLogoUrl: companyMap.get(conversation.buyerCompanyId)?.logoUrl ?? null,
+        // De dónde es el cliente (para la ficha del proveedor).
+        buyerCompanyCity: companyMap.get(conversation.buyerCompanyId)?.city ?? null,
+        buyerCompanyCountry: companyMap.get(conversation.buyerCompanyId)?.country ?? null,
         supplierCompanyId: conversation.supplierCompanyId,
         supplierCompanyName: companyMap.get(conversation.supplierCompanyId)?.name ?? 'Proveedor',
         supplierCompanyLogoUrl: companyMap.get(conversation.supplierCompanyId)?.logoUrl ?? null,
         lastMessageAt: conversation.lastMessageAt,
         unreadCount,
+        // De qué lado está quien consulta (en un chat directo, BUYER = quien lo inició).
+        viewerRole: participantRole,
         request: conversation.request,
         quote: conversation.quote,
         lastMessage: lastMessage
@@ -670,6 +766,19 @@ export class ConversationsService {
   }
 
   private getParticipantRoleForConversation(user: AuthUser, conversation: ConversationWithRelations) {
+    // Chat directo entre proveedoras: "BUYER" es el lado A (quien lo inició) y
+    // "SUPPLIER" el lado B. Así la lógica de leídos y no leídos sirve igual.
+    if (conversation.contextType === ConversationContextType.DIRECT) {
+      const supplierCompanyIds = listWorkspaceCompanyIds(user, 'supplier');
+      if (supplierCompanyIds.includes(conversation.buyerCompanyId)) {
+        return MembershipRole.BUYER;
+      }
+      if (supplierCompanyIds.includes(conversation.supplierCompanyId)) {
+        return MembershipRole.SUPPLIER;
+      }
+      return null;
+    }
+
     if (listWorkspaceCompanyIds(user, 'buyer').includes(conversation.buyerCompanyId)) {
       return MembershipRole.BUYER;
     }

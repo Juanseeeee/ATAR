@@ -5,12 +5,13 @@ import Link from 'next/link';
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useRegion } from '@/components/region/region-provider';
+import PublicAtariaChat from '@/components/marketing/public-ataria-chat';
 import SupplierShowcaseCard from '@/components/marketing/supplier-showcase-card';
 import { HeroLead, HeroSearch, HeroSuggestions, HeroTitle } from '@/components/marketing/page-hero';
 import Reveal from '@/components/ui/reveal';
 import { atarApi, type RequestCatalogCategoryRecord, type SupplierDirectoryRecord } from '@/lib/atar-api';
 import { isCategoryHidden } from '@/lib/hidden-categories';
-import { categorySearchTerms } from '@/lib/regional-terms';
+import { categorySearchTerms, type CountryCode } from '@/lib/regional-terms';
 
 type ProductCategory = {
   id: string;
@@ -164,8 +165,11 @@ type ProductFamily = {
   /** Nombre corto de la familia. */
   tab: string;
   image: string;
-  /** Cada ítem abre una solicitud con esa categoría del catálogo preseleccionada. */
-  items: { label: string; category: string }[];
+  /**
+   * Cada ítem abre una solicitud con esa categoría del catálogo preseleccionada.
+   * `byCountry` pisa el nombre en esta lista para un país puntual.
+   */
+  items: { label: string; category: string; byCountry?: Partial<Record<CountryCode, string>> }[];
   /** Palabras para ubicar productos y búsquedas dentro de la familia. */
   keywords: string[];
 };
@@ -177,9 +181,9 @@ const ALL_FAMILIES: ProductFamily[] = [
     tab: 'Big Bags y bolsas',
     image: '/bigbags.png',
     items: [
-      { label: 'Big Bags', category: 'Big Bags' },
+      { label: 'Big Bags', category: 'Big Bags', byCountry: { AR: 'Bolsones/Bigbags' } },
       { label: 'Sacos', category: 'Sacos' },
-      { label: 'Bolsas PP', category: 'Bolsas PP' },
+      { label: 'Bolsas PP', category: 'Bolsas PP', byCountry: { AR: 'Bolsas/Envases de rafia' } },
     ],
     keywords: ['big bag', 'costal', 'bolsa', 'saco', 'fibc', 'envase', 'embalaje'],
   },
@@ -307,6 +311,7 @@ function ProductosContent({ initialQuery }: { initialQuery: string }) {
   // pantalla pinta el catalogo hardcodeado y despues lo reemplaza por el de la
   // base, y se ve el parpadeo. Solo se usa si la API falla o viene vacia.
   const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [atariaOpen, setAtariaOpen] = useState(false);
   const [supplierCount, setSupplierCount] = useState<number | null>(null);
   const [suppliers, setSuppliers] = useState<SupplierDirectoryRecord[]>([]);
   const [suppliersLoaded, setSuppliersLoaded] = useState(false);
@@ -454,13 +459,16 @@ function ProductosContent({ initialQuery }: { initialQuery: string }) {
           <p className="mt-4 max-w-[520px] text-base leading-7 text-white/75">
             Nuestro equipo te ayuda a encontrar los productos y proveedores ideales para tu proceso de producción.
           </p>
-          <Link className={`${primaryCta} mt-8`} href={newRequestHref()}>
+          {/* ATARIA para visitantes: no hace falta iniciar sesión para charlar. */}
+          <button className={`${primaryCta} mt-8`} onClick={() => setAtariaOpen(true)} type="button">
             <span className="inline-flex items-center gap-2 text-white">
-              Iniciar cotización
+              Charlá con nuestro agente ATARIA
               <ArrowIcon />
             </span>
-          </Link>
+          </button>
+          <p className="mt-3 text-[13px] text-white/60">Sin registrarte. Te ayuda a encontrar productos y proveedores.</p>
         </Reveal>
+        <PublicAtariaChat onClose={() => setAtariaOpen(false)} open={atariaOpen} />
       </section>
 
       {/* ==================== EMPRESAS ==================== */}
@@ -537,7 +545,7 @@ const FAMILY_ILLUSTRATIONS: Record<string, string> = {
 };
 
 function FamilyCard({ family }: { family: ProductFamily }) {
-  const { categoryName } = useRegion();
+  const { categoryName, region } = useRegion();
   return (
     <div className="group flex h-full flex-col rounded-[22px] border border-[#e3e8f4] bg-[linear-gradient(180deg,#f8faff_0%,#eff3fc_100%)] p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition duration-300 hover:-translate-y-1 hover:border-[#c9d5f5] hover:shadow-[0_18px_40px_rgba(24,71,255,0.10)] sm:p-5">
       <div className="relative aspect-[5/4]">
@@ -554,7 +562,7 @@ function FamilyCard({ family }: { family: ProductFamily }) {
         {family.items.map((item) => (
           <li key={item.label}>
             <Link className="text-[13px] transition hover:underline sm:text-[14px]" href={newRequestHref(item.category)}>
-              <span className="text-slate-500 hover:text-[#1f5bff]">{categoryName(item.label)}</span>
+              <span className="text-slate-500 hover:text-[#1f5bff]">{(region && region !== 'XX' && item.byCountry?.[region]) || categoryName(item.label)}</span>
             </Link>
           </li>
         ))}

@@ -79,10 +79,11 @@ const ICONS: Record<string, string> = {
   'hilo multifilamento de pp': '/categorias/ico-hilos.png',
   'hilo retorcido y mallas': '/categorias/ico-hilos.png',
   maquinarias: '/categorias/ico-maquinaria.png',
+  'a medida': '/categorias/ico-amedida.png',
 };
 
 /** Rubros de la fila del home, en orden. */
-const HOME_ROW = ['big bags', 'bolsas pp', 'rollos y telas', 'maquinarias', 'sacos', 'tintas', 'cuerdas/cordones'];
+const HOME_ROW = ['big bags', 'bolsas pp', 'rollos y telas', 'maquinarias', 'tintas', 'cuerdas/cordones', 'a medida'];
 
 /** Recortes PNG (producto solo, sin fondo) para los rubros que todavía no tienen ícono. */
 const CUTOUTS: Record<string, string> = {
@@ -207,19 +208,12 @@ function CategoryCell({ category, className = 'flex' }: { category: HomeCategory
       className={`group relative ${className} items-center gap-3 border-b border-r border-slate-300 bg-white p-2.5 transition hover:z-10 hover:shadow-[0_8px_24px_rgba(15,23,42,0.16)] sm:flex-col sm:gap-2.5 sm:px-3 sm:py-5 sm:text-center`}
       href={categoryHref(category.label)}
     >
-      <span
-        className={`relative h-12 w-12 shrink-0 overflow-hidden rounded-full border border-slate-300 transition group-hover:border-[#1847ff] sm:h-[92px] sm:w-[92px] ${
-          category.icon ? 'bg-white' : 'bg-[#e3e9f6]'
-        }`}
-      >
+      {/* Ícono suelto, sin círculo que lo contenga. */}
+      <span className="relative h-12 w-12 shrink-0 sm:h-[92px] sm:w-[92px]">
         <Image
           alt=""
           className={
-            category.icon
-              ? 'object-contain p-1.5 transition group-hover:scale-105 sm:p-3.5'
-              : category.cutout
-                ? 'scale-[1.75] object-contain'
-                : 'object-cover'
+            'object-contain transition group-hover:scale-105'
           }
           fill
           sizes="92px"
@@ -239,7 +233,7 @@ function CategoryCell({ category, className = 'flex' }: { category: HomeCategory
   );
 }
 
-type ShortcutIcon = 'plus' | 'file' | 'tag' | 'box' | 'building' | 'heart';
+type ShortcutIcon = 'plus' | 'file' | 'tag' | 'box' | 'building' | 'heart' | 'ruler' | 'chat' | 'repeat';
 
 function ShortcutGlyph({ name }: { name: ShortcutIcon }) {
   const paths: Record<ShortcutIcon, string> = {
@@ -249,6 +243,9 @@ function ShortcutGlyph({ name }: { name: ShortcutIcon }) {
     box: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16zM3.3 7.3L12 12l8.7-4.7M12 22V12',
     building: 'M4 21V5a2 2 0 012-2h7a2 2 0 012 2v16M15 9h3a2 2 0 012 2v10M2 21h20M8 7h3M8 11h3M8 15h3',
     heart: 'M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21.3l7.8-7.8 1-1.1a5.5 5.5 0 000-7.8z',
+    ruler: 'M3 17 17 3l4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2',
+    chat: 'M21 15a4 4 0 01-4 4H8l-5 3V7a4 4 0 014-4h10a4 4 0 014 4v8z',
+    repeat: 'M17 2l4 4-4 4M3 11V9a3 3 0 013-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 01-3 3H3',
   };
   return (
     <svg aria-hidden="true" className="h-5 w-5" fill="none" viewBox="0 0 24 24">
@@ -268,6 +265,8 @@ type Shortcut = {
   primary?: boolean;
   /** Pendientes que se marcan sobre el ícono en mobile. */
   badge?: number;
+  /** Algo nuevo (mensajes sin leer): la tarjeta se pinta de azul claro. */
+  highlight?: boolean;
 };
 
 /** Mobile: los seis accesos a la vista, en una grilla de 3×2 con ícono y nombre. */
@@ -279,7 +278,7 @@ function ShortcutTile({ shortcut }: { shortcut: Shortcut }) {
     >
       <span
         className={`relative flex h-11 w-11 items-center justify-center rounded-full ${
-          shortcut.primary ? 'bg-[#1847ff] text-white shadow-[0_6px_14px_rgba(24,71,255,0.35)]' : 'bg-[#dbe6ff] text-[#1238d6]'
+          shortcut.primary || shortcut.highlight ? 'bg-[#1847ff] text-white shadow-[0_6px_14px_rgba(24,71,255,0.35)]' : 'bg-[#dbe6ff] text-[#1238d6]'
         }`}
       >
         <ShortcutGlyph name={shortcut.icon} />
@@ -289,35 +288,43 @@ function ShortcutTile({ shortcut }: { shortcut: Shortcut }) {
           </span>
         ) : null}
       </span>
-      <span className={`text-[12px] font-semibold leading-tight ${shortcut.primary ? 'text-[#1847ff]' : 'text-slate-800'}`}>
+      <span className={`text-[12px] font-semibold leading-tight ${shortcut.primary || shortcut.highlight ? 'text-[#1847ff]' : 'text-slate-800'}`}>
         {shortcut.short}
       </span>
     </Link>
   );
 }
 
-/** Accesos bajo el banner, como la fila de tarjetas de un marketplace. */
+/** Acceso rápido de escritorio: ícono, nombre y una línea de estado. */
 function ShortcutCard({ shortcut }: { shortcut: Shortcut }) {
   return (
     <Link
-      className="group flex w-[212px] shrink-0 flex-col rounded-[10px] border border-slate-300 bg-white p-4 shadow-[0_6px_18px_rgba(15,23,42,0.10)] transition hover:border-[#1847ff] xl:w-auto"
+      className={`group flex min-w-[170px] shrink-0 items-center gap-2.5 rounded-[12px] border px-2.5 py-2.5 shadow-[0_6px_18px_rgba(15,23,42,0.08)] transition xl:min-w-0 ${
+        shortcut.primary
+          ? 'border-[#1847ff] bg-[#1847ff] hover:bg-[#0f3ff5]'
+          : shortcut.highlight
+            ? 'border-[#1847ff] bg-[#dbe6ff] shadow-[0_0_0_3px_rgba(24,71,255,0.15)] hover:bg-[#cfdcff]'
+            : 'border-slate-300 bg-white hover:border-[#1847ff]'
+      }`}
       href={shortcut.href}
     >
-      <span className="flex items-center gap-2.5">
-        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${shortcut.primary ? 'bg-[#1847ff] text-white' : 'bg-[#dbe6ff] text-[#1238d6]'}`}>
-          <ShortcutGlyph name={shortcut.icon} />
-        </span>
-        <span className="text-[15px] font-bold leading-5 text-slate-950">{shortcut.title}</span>
-      </span>
-      <span className="mt-2.5 block min-h-[40px] text-[13px] leading-5 text-slate-600">{shortcut.text}</span>
       <span
-        className={`mt-3 flex h-9 items-center justify-center rounded-[8px] text-[13px] font-semibold transition ${
-          shortcut.primary
-            ? 'bg-[#1847ff] text-white group-hover:bg-[#0f3ff5]'
-            : 'border border-[#1847ff] bg-[#eef3ff] text-[#1238d6] group-hover:bg-[#dbe6ff]'
+        className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
+          shortcut.primary ? 'bg-white/15 text-white' : shortcut.highlight ? 'bg-[#1847ff] text-white' : 'bg-[#dbe6ff] text-[#1238d6]'
         }`}
       >
-        {shortcut.action}
+        <ShortcutGlyph name={shortcut.icon} />
+        {shortcut.badge ? (
+          <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ff4d4f] px-1 text-[10px] font-bold text-white ring-2 ring-white">
+            {shortcut.badge > 9 ? '9+' : shortcut.badge}
+          </span>
+        ) : null}
+      </span>
+      <span className="min-w-0 max-w-full">
+        <span className={`block truncate text-[13.5px] font-bold leading-5 ${shortcut.primary ? 'text-white' : shortcut.highlight ? 'text-[#1238d6]' : 'text-slate-950 group-hover:text-[#1847ff]'}`}>
+          {shortcut.short}
+        </span>
+        <span className={`block truncate text-[12px] leading-4 ${shortcut.primary ? 'text-white/80' : shortcut.highlight ? 'font-semibold text-[#1238d6]' : 'text-slate-500'}`}>{shortcut.text}</span>
       </span>
     </Link>
   );
@@ -425,6 +432,8 @@ function BuyerHome() {
   const [suppliers, setSuppliers] = useState<SupplierDirectoryRecord[]>([]);
   const [catalog, setCatalog] = useState<RequestCatalogCategoryRecord[]>([]);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
+  // Mensajes sin leer, para el acceso rápido a Mensajes.
+  const [unreadMessages, setUnreadMessages] = useState(0);
   const accessToken = session?.accessToken;
 
   useEffect(() => {
@@ -434,13 +443,19 @@ function BuyerHome() {
     let cancelled = false;
 
     async function load(token: string) {
-      const [directory, categories] = await Promise.allSettled([
+      const [directory, categories, conversations] = await Promise.allSettled([
         atarApi.getSuppliers(token),
         atarApi.getRequestCategories(),
+        atarApi.getConversations(undefined, token),
       ]);
       if (cancelled) {
         return;
       }
+      setUnreadMessages(
+        conversations.status === 'fulfilled'
+          ? conversations.value.filter((item) => item.contextType !== 'DIRECT').reduce((total, item) => total + item.unreadCount, 0)
+          : 0,
+      );
       // Verificados primero: son los que se recomiendan.
       setSuppliers(
         directory.status === 'fulfilled'
@@ -476,6 +491,16 @@ function BuyerHome() {
     () => [...requests].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 4),
     [requests],
   );
+  // Pedidos para repetir: solicitudes ya enviadas, las más nuevas primero.
+  const repeatable = useMemo(
+    () =>
+      [...requests]
+        .filter((item) => item.status !== 'DRAFT')
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 4),
+    [requests],
+  );
+
 
   // Cifras reales de las solicitudes del comprador, para los accesos.
   const counts = useMemo(() => {
@@ -495,56 +520,43 @@ function BuyerHome() {
   const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
   const shortcuts: Shortcut[] = [
+    { title: 'Solicitar cotización', short: 'Cotizar', text: 'Gratis, sin compromiso', action: '', href: NUEVA_HREF, icon: 'plus', primary: true },
     {
-      title: 'Solicitar cotización',
-      short: 'Cotizar',
-      text: 'Contá qué necesitás y recibí propuestas de varios proveedores.',
-      action: 'Empezar ahora',
-      href: NUEVA_HREF,
-      icon: 'plus',
-      primary: true,
-    },
-    {
-      title: 'Mis solicitudes',
-      short: 'Solicitudes',
-      text: counts.open > 0 ? `Tenés ${plural(counts.open, 'solicitud abierta', 'solicitudes abiertas')}.` : 'Todavía no tenés solicitudes abiertas.',
-      action: 'Ver solicitudes',
-      href: SOLICITUDES_HREF,
-      icon: 'file',
+      title: 'Mensajes',
+      short: 'Mensajes',
+      text: unreadMessages > 0 ? `${unreadMessages} sin leer` : 'Todo leído',
+      action: '',
+      href: '/dashboard/comprador/mensajes',
+      icon: 'chat',
+      badge: unreadMessages,
+      highlight: unreadMessages > 0,
     },
     {
       title: 'Cotizaciones',
       short: 'Cotizaciones',
-      badge: counts.withQuotes,
-      text: counts.withQuotes > 0 ? `${plural(counts.withQuotes, 'solicitud tiene', 'solicitudes tienen')} respuestas para comparar.` : 'Acá vas a ver las respuestas de los proveedores.',
-      action: 'Comparar respuestas',
+      text: counts.withQuotes > 0 ? `${counts.withQuotes} para comparar` : 'Sin novedades',
+      action: '',
       href: '/dashboard/comprador/cotizaciones',
       icon: 'tag',
+      badge: counts.withQuotes,
     },
     {
-      title: 'Mis pedidos',
+      title: 'Solicitudes',
+      short: 'Solicitudes',
+      text: counts.open > 0 ? plural(counts.open, 'abierta', 'abiertas') : 'Ninguna abierta',
+      action: '',
+      href: SOLICITUDES_HREF,
+      icon: 'file',
+    },
+    {
+      title: 'Pedidos',
       short: 'Pedidos',
-      text: counts.orders > 0 ? `${plural(counts.orders, 'compra adjudicada', 'compras adjudicadas')} para seguir.` : 'Seguí el estado de tus compras adjudicadas.',
-      action: 'Ver pedidos',
+      text: counts.orders > 0 ? plural(counts.orders, 'en curso', 'en curso') : 'Sin pedidos',
+      action: '',
       href: '/dashboard/comprador/pedidos',
       icon: 'box',
     },
-    {
-      title: 'Proveedores',
-      short: 'Proveedores',
-      text: suppliers.length > 0 ? `${plural(suppliers.length, 'empresa registrada', 'empresas registradas')} en ATAR.` : 'Fabricantes y distribuidores del sector.',
-      action: 'Ver proveedores',
-      href: PROVEEDORES_HREF,
-      icon: 'building',
-    },
-    {
-      title: 'Favoritos',
-      short: 'Favoritos',
-      text: 'Los proveedores que guardaste para tener a mano.',
-      action: 'Ver favoritos',
-      href: '/dashboard/comprador/favoritos',
-      icon: 'heart',
-    },
+    { title: 'Favoritos', short: 'Favoritos', text: 'Guardados', action: '', href: '/dashboard/comprador/favoritos', icon: 'heart' },
   ];
 
   return (
@@ -582,7 +594,7 @@ function BuyerHome() {
           <section className="relative isolate overflow-hidden bg-[#0b1f66] text-white">
             {/* Productos recortados (PNG), no fotos de fondo. */}
             <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 hidden w-[52%] lg:block">
-              <div className="absolute left-[76%] top-[-7%] aspect-[3/2] h-[110%] -translate-x-1/2">
+              <div className="absolute left-[76%] top-[-4%] aspect-[3/2] h-[108%] -translate-x-1/2">
                 <Image alt="" className="object-contain" fill sizes="50vw" src="/rollo.png" />
               </div>
               <div className="absolute left-[40%] top-[-14%] aspect-[3/2] h-[118%] -translate-x-1/2">
@@ -590,40 +602,25 @@ function BuyerHome() {
               </div>
             </div>
 
-            <div className="relative px-4 pb-16 pt-6 lg:max-w-[54%] lg:pb-24 lg:pt-10 xl:px-6">
+            <div className="relative px-4 pb-14 pt-5 lg:max-w-[54%] lg:pb-16 lg:pt-7 xl:px-6">
               {firstName ? <p className="text-[14px] font-semibold text-[#9db8ff]">Hola, {firstName}</p> : null}
-              <h1 className="mt-1.5 max-w-[720px] text-[26px] font-extrabold leading-[1.1] tracking-tight sm:text-[32px] lg:text-[40px]">
+              <h1 className="mt-1 max-w-[720px] text-[24px] font-extrabold leading-[1.1] tracking-tight sm:text-[28px] lg:text-[34px]">
                 Encontrá proveedores industriales y cotizá en un solo lugar
               </h1>
-              <p className="mt-3 max-w-[520px] text-[15px] leading-6 text-white/85 lg:text-[17px] lg:leading-7">
+              <p className="mt-2 max-w-[520px] text-[14.5px] leading-6 text-white/85 lg:text-[16px]">
                 Descubrí productos, compará alternativas y conectá con fabricantes y distribuidores.
               </p>
-              <div className="mt-5 grid grid-cols-2 gap-2.5 sm:flex sm:gap-3">
-                <Link
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-[10px] bg-white px-2 text-[14px] font-bold text-[#1238d6] shadow-[0_3px_0_rgba(0,0,0,0.25)] transition hover:bg-[#eef3ff] sm:px-6 sm:text-[15px]"
-                  href={NUEVA_HREF}
-                >
-                  Solicitar cotización
-                  <ArrowRight className="hidden h-4 w-4 sm:block" />
-                </Link>
-                <a
-                  className="inline-flex h-12 items-center justify-center rounded-[10px] border-2 border-white px-2 text-[14px] font-semibold text-white transition hover:bg-white/10 sm:px-6 sm:text-[15px]"
-                  href="#categorias"
-                >
-                  Explorar productos
-                </a>
-              </div>
             </div>
           </section>
 
           {/* ==================== ACCESOS ==================== */}
-          <div className="relative -mt-10 lg:-mt-14" data-tour="home-shortcuts">
-            <div className="mx-4 grid grid-cols-3 gap-1 rounded-[14px] border border-slate-300 bg-white p-1.5 shadow-[0_6px_18px_rgba(15,23,42,0.10)] sm:hidden">
+          <div className="relative -mt-9 lg:-mt-10" data-tour="home-shortcuts">
+            <div className="mx-4 grid grid-cols-4 gap-1 rounded-[14px] border border-slate-300 bg-white p-1.5 shadow-[0_6px_18px_rgba(15,23,42,0.10)] sm:hidden">
               {shortcuts.map((shortcut) => (
                 <ShortcutTile key={shortcut.title} shortcut={shortcut} />
               ))}
             </div>
-            <div className="hidden gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:flex xl:grid xl:grid-cols-6 xl:overflow-visible xl:px-6 [&::-webkit-scrollbar]:hidden">
+            <div className="hidden gap-2.5 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:flex xl:grid xl:grid-cols-6 xl:overflow-visible xl:px-6 [&::-webkit-scrollbar]:hidden">
               {shortcuts.map((shortcut) => (
                 <ShortcutCard key={shortcut.title} shortcut={shortcut} />
               ))}
@@ -632,7 +629,7 @@ function BuyerHome() {
         </>
       )}
 
-      <div className="w-full space-y-5 px-4 pt-5 lg:space-y-6 xl:px-6">
+      <div className="w-full space-y-4 px-4 pt-4 xl:px-6">
         {noResults ? (
           <div className="rounded-[10px] border border-dashed border-slate-400 bg-white px-5 py-10 text-center">
             <p className="text-[17px] font-bold text-slate-950">No encontramos nada para “{query}”</p>
@@ -651,10 +648,10 @@ function BuyerHome() {
           </div>
         ) : null}
 
-        {/* ==================== CATEGORÍAS ==================== */}
+        {/* ==================== PRODUCTOS (rubros con su ícono) ==================== */}
         {!catalogLoaded || visibleCategories.length > 0 ? (
           <div className="scroll-mt-4" data-tour="home-categories" id="categorias">
-            <Shelf href={needle ? undefined : NUEVA_HREF} linkLabel="Ver todo el catálogo" title="Categorías">
+            <Shelf href={needle ? undefined : NUEVA_HREF} linkLabel="Ver todo el catálogo" title="Productos">
               {/* Cada celda dibuja su línea derecha e inferior; el margen negativo esconde las del borde. */}
               <div className="-mb-px -mr-px grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8">
                 {catalogLoaded
@@ -685,24 +682,9 @@ function BuyerHome() {
           </div>
         ) : null}
 
-        {/* ==================== A MEDIDA ==================== */}
-        {!needle ? (
-          <div className="flex flex-col gap-3 rounded-[10px] border border-[#1847ff] bg-[#dbe6ff] px-4 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-5">
-            <div>
-              <p className="text-[16px] font-bold text-slate-950">¿No encontrás el producto que buscás?</p>
-              <p className="mt-0.5 text-[14px] text-slate-700">
-                Describilo y pedilo a medida: lo reciben los proveedores que pueden fabricarlo.
-              </p>
-            </div>
-            <Link className={`${primaryButton} h-11 shrink-0 px-5 text-[14px]`} href={stepTwoHref('A medida')}>
-              Solicitar producto a medida
-            </Link>
-          </div>
-        ) : null}
-
         {/* ==================== PROVEEDORES ==================== */}
-        {catalogLoaded && visibleSuppliers.length > 0 ? (
-          <Shelf href={PROVEEDORES_HREF} linkLabel="Ver todos" title={needle ? 'Proveedores' : 'Proveedores recomendados'} tourId="home-suppliers">
+        {needle && catalogLoaded && visibleSuppliers.length > 0 ? (
+          <Shelf href={PROVEEDORES_HREF} linkLabel="Ver todos" title="Proveedores" tourId="home-suppliers">
             <div className="-mb-px -mr-px grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
               {visibleSuppliers.map((supplier) => (
                 <SupplierCell key={supplier.id} supplier={supplier} />
@@ -711,46 +693,75 @@ function BuyerHome() {
           </Shelf>
         ) : null}
 
-        {/* ==================== ACTIVIDAD RECIENTE ==================== */}
+        {/* ==================== RETOMÁ Y REPETÍ ==================== */}
         {!needle ? (
-          <Shelf
-            href={recentRequests.length > 0 ? SOLICITUDES_HREF : undefined}
-            linkLabel="Ver todas"
-            title="Retomá donde dejaste"
-            tourId="home-activity"
-          >
-            {recentRequests.length === 0 ? (
-              <p className="px-4 py-5 text-[14px] text-slate-600 lg:px-5">
-                Todavía no tenés solicitudes. Cuando pidas una cotización, la vas a poder seguir desde acá.
-              </p>
-            ) : (
-              <ul className="-mb-px -mr-px grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
-                {recentRequests.map((request) => {
-                  const activity = requestActivity(request);
-                  return (
-                    <li key={request.id} className="border-b border-r border-slate-300 bg-white">
-                      <Link
-                        className="group flex h-full flex-col px-4 py-3.5 transition hover:bg-[#eef3ff] lg:px-5"
-                        href={`${SOLICITUDES_HREF}/${request.id}`}
-                      >
-                        <span className={`self-start rounded-full px-2 py-0.5 text-[11px] font-semibold ${activity.tone}`}>
-                          {activity.badge}
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+            <Shelf href={recentRequests.length > 0 ? SOLICITUDES_HREF : undefined} linkLabel="Ver todas" title="Retomá donde dejaste" tourId="home-activity">
+              {recentRequests.length === 0 ? (
+                <p className="px-4 py-5 text-[14px] text-slate-600 lg:px-5">
+                  Todavía no tenés solicitudes. Cuando pidas una cotización, la vas a poder seguir desde acá.
+                </p>
+              ) : (
+                <ul className="divide-y divide-slate-200">
+                  {recentRequests.map((request) => {
+                    const activity = requestActivity(request);
+                    return (
+                      <li key={request.id}>
+                        <Link className="group flex items-center gap-3 px-4 py-2.5 transition hover:bg-[#eef3ff] lg:px-5" href={`${SOLICITUDES_HREF}/${request.id}`}>
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${activity.tone}`}>{activity.badge}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[14px] font-bold text-slate-950">{request.title}</span>
+                            <span className="block truncate text-[12.5px] text-slate-500">
+                              {request.category} · {formatWhen(request.createdAt)}
+                            </span>
+                          </span>
+                          <span className="hidden shrink-0 items-center gap-1 text-[13px] font-semibold text-[#1847ff] sm:inline-flex">
+                            {activity.action}
+                            <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
+                          </span>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Shelf>
+
+            <Shelf title="Repetir un pedido" tourId="home-repeat">
+              {repeatable.length === 0 ? (
+                <p className="px-4 py-5 text-[14px] text-slate-600 lg:px-5">Cuando hagas tu primera solicitud, la vas a poder repetir en un clic.</p>
+              ) : (
+                <ul className="divide-y divide-slate-200">
+                  {repeatable.map((request) => {
+                    const items = request.items ?? [];
+                    const detail =
+                      items.length > 1
+                        ? `${items.length} productos`
+                        : items[0]?.quantity
+                          ? `${items[0].quantity.toLocaleString('es-AR')} ${items[0].unit ?? 'unidades'}`
+                          : request.category;
+                    return (
+                      <li key={request.id} className="flex items-center gap-3 px-4 py-2.5 lg:px-5">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[14px] font-bold text-slate-950">{request.title}</span>
+                          <span className="block truncate text-[12.5px] text-slate-500">
+                            {detail} · {formatWhen(request.createdAt)}
+                          </span>
                         </span>
-                        <span className="mt-1.5 line-clamp-1 text-[14px] font-bold text-slate-950">{request.title}</span>
-                        <span className="mt-0.5 truncate text-[13px] text-slate-600">
-                          {request.category} · {formatWhen(request.createdAt)}
-                        </span>
-                        <span className="mt-2 inline-flex items-center gap-1 text-[13px] font-semibold text-[#1847ff]">
-                          {activity.action}
-                          <ArrowRight className="h-3.5 w-3.5 transition group-hover:translate-x-0.5" />
-                        </span>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Shelf>
+                        <Link
+                          className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-slate-300 px-2.5 text-[12.5px] font-semibold text-slate-800 transition hover:border-[#1847ff] hover:text-[#1238d6]"
+                          href={`${NUEVA_HREF}?repetir=${request.id}`}
+                        >
+                          <ShortcutGlyph name="repeat" />
+                          Repetir
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Shelf>
+          </div>
         ) : null}
       </div>
     </div>
