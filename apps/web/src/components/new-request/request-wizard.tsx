@@ -1183,9 +1183,9 @@ export default function RequestWizard() {
             {products.map((line) => {
               const missing = missingByLine[line.id];
               return (
-                <li key={line.id}>
+                <li key={line.id} className="group flex items-center gap-1">
                   <button
-                    className="flex w-full items-center gap-3 py-3 text-left"
+                    className="flex min-w-0 flex-1 items-center gap-3 py-3 text-left"
                     onClick={() => {
                       setOpenId(line.id);
                       if (step !== 2) goTo(2);
@@ -1206,6 +1206,15 @@ export default function RequestWizard() {
                         {missing}
                       </span>
                     )}
+                  </button>
+                  <button
+                    aria-label={`Quitar ${line.name || 'producto'}`}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                    onClick={() => removeLine(line.id)}
+                    title="Quitar producto"
+                    type="button"
+                  >
+                    <Icon className="h-4 w-4" name="trash" />
                   </button>
                 </li>
               );
