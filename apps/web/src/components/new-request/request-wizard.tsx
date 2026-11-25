@@ -53,6 +53,33 @@ const WHEN_OPTIONS: Array<{ key: DeliveryWhen; label: string }> = [
 
 type IconName = 'check' | 'plus' | 'trash' | 'search' | 'edit' | 'lock' | 'globe' | 'verified' | 'chev-left' | 'chev-right' | 'chev-down' | 'chev-up' | 'arrow' | 'building';
 
+/** Contador "− N +" para pedir varias veces el mismo producto. */
+function LineStepper({ count, label, onAdd, onRemove }: { count: number; label: string; onAdd: () => void; onRemove: () => void }) {
+  return (
+    <span className="relative z-10 inline-flex shrink-0 items-center gap-0.5 rounded-full border border-[#1f5bff] bg-white p-0.5">
+      <button
+        aria-label={`Quitar un ${label}`}
+        className="flex h-7 w-7 items-center justify-center rounded-full text-[17px] font-bold text-[#1238d6] transition hover:bg-[#eef3ff]"
+        onClick={onRemove}
+        type="button"
+      >
+        −
+      </button>
+      <span aria-live="polite" className="min-w-5 text-center text-[13.5px] font-bold text-[#1238d6]">
+        {count}
+      </span>
+      <button
+        aria-label={`Agregar otro ${label}`}
+        className="flex h-7 w-7 items-center justify-center rounded-full bg-[#1847ff] text-[16px] font-bold text-white transition hover:bg-[#0f3ff5]"
+        onClick={onAdd}
+        type="button"
+      >
+        +
+      </button>
+    </span>
+  );
+}
+
 function Icon({ name, className = 'h-4 w-4' }: { name: IconName; className?: string }) {
   const paths: Record<IconName, ReactNode> = {
     check: <path d="m5 12 4.5 4.5L19 7" />,
@@ -379,10 +406,32 @@ export default function RequestWizard() {
     setDraft((current) => ({ ...current, products: current.products.filter((line) => line.id !== id) }));
   }
 
-  function toggleCategory(category: RequestCatalogCategoryRecord) {
-    const existing = products.find((line) => line.category === category.label);
-    if (existing) removeLine(existing.id);
-    else setDraft((current) => ({ ...current, products: [...current.products, newLine({ name: categoryName(category.label), category: category.label })] }));
+  /** Cuántas veces está pedido un rubro (se puede pedir varias veces con distintas medidas). */
+  function countOf(label: string) {
+    return products.filter((line) => line.category === label).length;
+  }
+
+  /** Suma otra línea del rubro: "Telas Tubulares", "Telas Tubulares (2)"… */
+  function addCategoryLine(category: RequestCatalogCategoryRecord) {
+    setDraft((current) => {
+      const count = current.products.filter((line) => line.category === category.label).length;
+      const base = categoryName(category.label);
+      const line = newLine({ name: count > 0 ? `${base} (${count + 1})` : base, category: category.label });
+      return { ...current, products: [...current.products, line] };
+    });
+  }
+
+  /** Quita la última línea agregada de ese rubro. */
+  function removeCategoryLine(label: string) {
+    const last = [...products].reverse().find((line) => line.category === label);
+    if (last) removeLine(last.id);
+  }
+
+  /** Vuelve al paso 1 mostrando todas las familias (no la última que se abrió). */
+  function goToProducts() {
+    setOpenGroup(null);
+    setCatalogQuery('');
+    goTo(1);
   }
 
   function addCustom() {
@@ -583,33 +632,66 @@ export default function RequestWizard() {
 
   // Tarjeta de un rubro del catálogo (se marca y desmarca al tocarla).
   function renderCategoryTile(category: RequestCatalogCategoryRecord) {
-    const selected = products.some((line) => line.category === category.label);
+    const count = countOf(category.label);
+    const label = categoryName(category.label);
     return (
-      <button
+      <div
         key={category.id}
-        aria-pressed={selected}
         className={`relative flex flex-col items-center rounded-2xl border p-4 text-center transition ${
-          selected ? 'border-[#1f5bff] bg-[#f5f8ff] shadow-[0_0_0_3px_rgba(31,91,255,0.10)]' : 'border-slate-200 hover:border-[#9db4ff] hover:bg-[#fafbff]'
+          count > 0 ? 'border-[#1f5bff] bg-[#f5f8ff] shadow-[0_0_0_3px_rgba(31,91,255,0.10)]' : 'border-slate-200 hover:border-[#9db4ff] hover:bg-[#fafbff]'
         }`}
-        onClick={() => toggleCategory(category)}
-        type="button"
       >
-        <span
-          className={`absolute right-2.5 top-2.5 flex h-6 w-6 items-center justify-center rounded-full ${
-            selected ? 'bg-[#1847ff] text-white' : 'border border-slate-300 bg-white text-transparent'
-          }`}
-        >
-          <Icon className="h-3.5 w-3.5" name="check" />
-        </span>
-        <Image alt="" className="h-16 w-16 object-contain" height={64} src={categoryIconFor(category.label)} width={64} />
-        <span className="mt-2 text-[14px] font-bold leading-tight text-slate-900 [overflow-wrap:anywhere]">{categoryName(category.label)}</span>
-        {category.subtitle ? <span className="mt-0.5 line-clamp-1 text-[12px] text-slate-500">{category.subtitle}</span> : null}
-      </button>
+        {/* Sin elegir, toda la tarjeta agrega el producto. */}
+        {count === 0 ? (
+          <button aria-label={`Agregar ${label}`} className="absolute inset-0 rounded-2xl" onClick={() => addCategoryLine(category)} type="button" />
+        ) : null}
+        <Image alt="" className="pointer-events-none h-16 w-16 object-contain" height={64} src={categoryIconFor(category.label)} width={64} />
+        <span className="pointer-events-none mt-2 text-[14px] font-bold leading-tight text-slate-900 [overflow-wrap:anywhere]">{label}</span>
+        {category.subtitle ? <span className="pointer-events-none mt-0.5 line-clamp-1 text-[12px] text-slate-500">{category.subtitle}</span> : null}
+        {count > 0 ? (
+          <span className="mt-2.5">
+            <LineStepper count={count} label={label} onAdd={() => addCategoryLine(category)} onRemove={() => removeCategoryLine(category.label)} />
+          </span>
+        ) : (
+          <span className="pointer-events-none mt-2.5 text-[12.5px] font-semibold text-[#1238d6]">+ Agregar</span>
+        )}
+      </div>
     );
   }
 
+  // "¿No está en el catálogo?" como una tarjeta más de la grilla: ocupa el lugar libre.
+  // Clases completas para que Tailwind las genere (2, 3 y 4 columnas según el ancho).
+  const SPAN_BASE = ['col-span-1', 'col-span-2'];
+  const SPAN_SM = ['sm:col-span-1', 'sm:col-span-2', 'sm:col-span-3'];
+  const SPAN_2XL = ['2xl:col-span-1', '2xl:col-span-2', '2xl:col-span-3', '2xl:col-span-4'];
+  /** Cuántas columnas libres quedan en la última fila con `count` tarjetas (toda la fila si está completa). */
+  const freeColumns = (count: number, columns: number) => columns - (count % columns || 0) || columns;
+
+  // "¿No está en el catálogo?" como una tarjeta más: ocupa todo el espacio libre
+  // de la última fila y, si queda ancha, pasa a formato horizontal.
+  const customTile = (count: number) => (
+    <div
+      key="a-medida"
+      className={`@container ${SPAN_BASE[freeColumns(count, 2) - 1]} ${SPAN_SM[freeColumns(count, 3) - 1]} ${SPAN_2XL[freeColumns(count, 4) - 1]}`}
+    >
+      <button
+        className="flex h-full w-full flex-col items-center justify-center rounded-2xl border border-dashed border-[#9db4ff] bg-[#f7f9ff] p-4 text-center transition hover:border-[#1f5bff] hover:bg-[#eef3ff] @[26rem]:flex-row @[26rem]:justify-start @[26rem]:gap-4 @[26rem]:text-left"
+        onClick={addCustom}
+        type="button"
+      >
+        <Image alt="" className="h-16 w-16 shrink-0 object-contain" height={64} src={categoryIconFor(CUSTOM)} width={64} />
+        <span className="mt-2 flex min-w-0 flex-col @[26rem]:mt-0 @[26rem]:flex-1">
+          <span className="text-[14px] font-bold leading-tight text-slate-900">¿No está en el catálogo?</span>
+          <span className="mt-0.5 text-[12px] text-slate-500">Agregá un producto a medida y describilo con tus palabras.</span>
+        </span>
+        <span className="mt-2.5 shrink-0 text-[12.5px] font-semibold text-[#1238d6] @[26rem]:mt-0">+ A medida</span>
+      </button>
+    </div>
+  );
+
   // ---------- Paso 1: Productos ----------
-  const productsStep = (
+  // El pie (botones Anterior / Continuar) va dentro de la tarjeta en escritorio.
+  const productsStepWith = (footer: ReactNode) => (
     <div className={`${card} p-5`} data-tour="wizard-catalog">
       <div className="relative">
         <Icon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" name="search" />
@@ -625,6 +707,7 @@ export default function RequestWizard() {
         // Buscando: todos los rubros que coinciden, sin familias.
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
           {visibleCategories.map(renderCategoryTile)}
+          {customTile(visibleCategories.length)}
         </div>
       ) : currentGroup ? (
         <div className="mt-4">
@@ -637,64 +720,75 @@ export default function RequestWizard() {
             Todas las categorías
           </button>
           <p className="mt-2 text-[16px] font-bold text-slate-950">{currentGroup.name}</p>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">{currentGroup.items.map(renderCategoryTile)}</div>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 2xl:grid-cols-4">
+            {currentGroup.items.map(renderCategoryTile)}
+            {customTile(currentGroup.items.length)}
+          </div>
         </div>
       ) : (
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-[repeat(2,minmax(0,1fr))]">
           {groups.map((group) => {
             const single = group.items.length === 1 ? group.items[0] : null;
-            const chosen = group.items.filter((item) => products.some((line) => line.category === item.label)).length;
+            const chosen = group.items.reduce((total, item) => total + countOf(item.label), 0);
             return (
-              <button
+              <div
                 key={group.id}
-                aria-pressed={single ? chosen > 0 : undefined}
-                className={`flex items-center gap-3.5 rounded-2xl border p-3.5 text-left transition ${
+                className={`relative flex items-center gap-3.5 rounded-2xl border p-3.5 text-left transition ${
                   chosen > 0 ? 'border-[#1f5bff] bg-[#f5f8ff] shadow-[0_0_0_3px_rgba(31,91,255,0.10)]' : 'border-slate-200 hover:border-[#9db4ff] hover:bg-[#fafbff]'
                 }`}
-                onClick={() => (single ? toggleCategory(single) : setOpenGroup(group.id))}
-                type="button"
               >
-                <Image alt="" className="h-14 w-14 shrink-0 object-contain" height={56} src={group.icon} width={56} />
-                <span className="min-w-0 flex-1">
+                {/* Familia con subcategorías: abre la lista. Con un solo producto: lo agrega (si todavía no está). */}
+                {!single || chosen === 0 ? (
+                  <button
+                    aria-label={single ? `Agregar ${group.name}` : `Ver ${group.name}`}
+                    className="absolute inset-0 rounded-2xl"
+                    onClick={() => (single ? addCategoryLine(single) : setOpenGroup(group.id))}
+                    type="button"
+                  />
+                ) : null}
+                <Image alt="" className="pointer-events-none h-14 w-14 shrink-0 object-contain" height={56} src={group.icon} width={56} />
+                <span className="pointer-events-none min-w-0 flex-1">
                   <span className="block text-[15px] font-bold leading-tight text-slate-900">{group.name}</span>
                   <span className="mt-0.5 block truncate text-[12.5px] text-slate-500">
                     {single ? single.subtitle : group.items.map((item) => categoryName(item.label)).join(', ')}
                   </span>
                 </span>
                 {single ? (
-                  <span
-                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                      chosen > 0 ? 'bg-[#1847ff] text-white' : 'border border-slate-300 bg-white text-transparent'
-                    }`}
-                  >
-                    <Icon className="h-3.5 w-3.5" name="check" />
-                  </span>
+                  chosen > 0 ? (
+                    <LineStepper count={chosen} label={group.name} onAdd={() => addCategoryLine(single)} onRemove={() => removeCategoryLine(single.label)} />
+                  ) : (
+                    <span className="pointer-events-none flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-white text-[#1238d6]">
+                      <Icon className="h-3.5 w-3.5" name="plus" />
+                    </span>
+                  )
                 ) : (
-                  <span className="flex shrink-0 items-center gap-1.5">
+                  <span className="pointer-events-none flex shrink-0 items-center gap-1.5">
                     {chosen > 0 ? (
                       <span className="flex h-6 min-w-6 items-center justify-center rounded-full bg-[#1847ff] px-1.5 text-[12px] font-bold text-white">{chosen}</span>
                     ) : null}
                     <Icon className="h-4 w-4 text-[#1238d6]" name="chev-right" />
                   </span>
                 )}
-              </button>
+              </div>
             );
           })}
+          {/* Producto a medida: ocupa el lugar libre de la grilla de familias. */}
+          <button
+            className="flex items-center gap-3.5 rounded-2xl border border-dashed border-[#9db4ff] bg-[#f7f9ff] p-3.5 text-left transition hover:border-[#1f5bff] hover:bg-[#eef3ff]"
+            onClick={addCustom}
+            type="button"
+          >
+            <Image alt="" className="h-14 w-14 shrink-0 object-contain" height={56} src={categoryIconFor(CUSTOM)} width={56} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[15px] font-bold leading-tight text-slate-900">¿No está en el catálogo?</span>
+              <span className="mt-0.5 block text-[12.5px] text-slate-500">Pedí un producto a medida</span>
+            </span>
+            <Icon className="h-5 w-5 shrink-0 text-[#1238d6]" name="plus" />
+          </button>
         </div>
       )}
-      <button
-        className="mt-4 flex w-full items-center gap-3 rounded-2xl border border-dashed border-slate-300 px-4 py-3.5 text-left transition hover:border-[#1f5bff] hover:bg-[#f7f9ff]"
-        onClick={addCustom}
-        type="button"
-      >
-        <Image alt="" className="h-10 w-10 object-contain" height={40} src={categoryIconFor(CUSTOM)} width={40} />
-        <span className="min-w-0 flex-1">
-          <span className="block text-[14.5px] font-semibold text-slate-900">¿No está en el catálogo?</span>
-          <span className="block text-[13px] text-slate-500">Agregá un producto a medida y describilo con tus palabras.</span>
-        </span>
-        <Icon className="h-5 w-5 text-[#1238d6]" name="plus" />
-      </button>
       {showErrors && !productsOk ? <p className="mt-3 text-[13.5px] font-medium text-rose-600">Elegí al menos un producto.</p> : null}
+      {footer}
     </div>
   );
 
@@ -703,7 +797,7 @@ export default function RequestWizard() {
     products.length === 0 ? (
       <div className={`${card} px-5 py-10 text-center`}>
         <p className="text-[14.5px] text-slate-600">Todavía no elegiste productos.</p>
-        <button className="mt-3 text-[14px] font-semibold text-[#1238d6] hover:underline" onClick={() => goTo(1)} type="button">
+        <button className="mt-3 text-[14px] font-semibold text-[#1238d6] hover:underline" onClick={goToProducts} type="button">
           Ir a elegirlos
         </button>
       </div>
@@ -712,7 +806,7 @@ export default function RequestWizard() {
         activeId={activeOpenId ?? products[0].id}
         fieldsByLine={fieldsByLine}
         missingByLine={missingByLine}
-        onAddProduct={() => goTo(1)}
+        onAddProduct={goToProducts}
         onAllDone={handleContinue}
         onSelectProduct={(id) => setOpenId(id)}
         onSetSpec={setSpec}
@@ -970,7 +1064,6 @@ export default function RequestWizard() {
     </div>
   );
 
-  const content = step === 1 ? productsStep : step === 2 ? specsStep : step === 3 ? deliveryStep : step === 4 ? suppliersStep : reviewStep;
 
   // ---------- Botones de navegación ----------
   const nextStep = step < 5 ? STEPS[step] : null;
@@ -982,12 +1075,20 @@ export default function RequestWizard() {
           <Icon name="chev-left" />
           <span className="hidden sm:inline">{prevStep.label}</span>
         </button>
-      ) : (
-        <Link className={secondaryButton} href={BASE}>
+      ) : currentGroup || catalogQuery.trim() ? (
+        <button
+          aria-label="Volver a todas las familias"
+          className={secondaryButton}
+          onClick={() => {
+            setOpenGroup(null);
+            setCatalogQuery('');
+          }}
+          type="button"
+        >
           <Icon name="chev-left" />
-          <span className="hidden sm:inline">Formas de empezar</span>
-        </Link>
-      )}
+          <span className="hidden sm:inline">Volver</span>
+        </button>
+      ) : null}
       <div className="flex-1" />
       {nextStep ? (
         <button className={`${primaryButton} max-sm:flex-1`} onClick={handleContinue} type="button">
@@ -1003,6 +1104,41 @@ export default function RequestWizard() {
       )}
     </div>
   );
+
+  const content =
+    step === 1
+      ? productsStepWith(
+          // Dentro de la tarjeta, con etiquetas cortas para que entren en una línea.
+          <div className="mt-5 hidden items-center gap-3 border-t border-slate-200 pt-4 lg:flex">
+            {/* Volver = paso anterior dentro del catálogo (de una familia o búsqueda a todas
+                las familias). En la lista de familias no hay paso anterior: no se muestra. */}
+            {currentGroup || catalogQuery.trim() ? (
+              <button
+                className={`${secondaryButton} whitespace-nowrap`}
+                onClick={() => {
+                  setOpenGroup(null);
+                  setCatalogQuery('');
+                }}
+                type="button"
+              >
+                <Icon name="chev-left" />
+                Volver
+              </button>
+            ) : null}
+            <div className="flex-1" />
+            <button className={`${primaryButton} whitespace-nowrap`} onClick={handleContinue} type="button">
+              Continuar
+              <Icon name="arrow" />
+            </button>
+          </div>,
+        )
+      : step === 2
+        ? specsStep
+        : step === 3
+          ? deliveryStep
+          : step === 4
+            ? suppliersStep
+            : reviewStep;
 
   // ---------- Columna derecha: "Tu solicitud" + consejo ----------
   const tip: ReactNode =
@@ -1035,7 +1171,7 @@ export default function RequestWizard() {
       <div className={`${card} p-5`}>
         <div className="flex items-center justify-between">
           <h2 className="text-[17px] font-bold text-slate-950">Tu solicitud</h2>
-          <button className="inline-flex items-center gap-1 text-[14px] font-semibold text-[#1238d6] hover:underline" onClick={() => goTo(1)} type="button">
+          <button className="inline-flex items-center gap-1 text-[14px] font-semibold text-[#1238d6] hover:underline" onClick={goToProducts} type="button">
             <Icon className="h-3.5 w-3.5" name="plus" />
             Agregar
           </button>
@@ -1047,9 +1183,9 @@ export default function RequestWizard() {
             {products.map((line) => {
               const missing = missingByLine[line.id];
               return (
-                <li key={line.id}>
+                <li key={line.id} className="group flex items-center gap-1">
                   <button
-                    className="flex w-full items-center gap-3 py-3 text-left"
+                    className="flex min-w-0 flex-1 items-center gap-3 py-3 text-left"
                     onClick={() => {
                       setOpenId(line.id);
                       if (step !== 2) goTo(2);
@@ -1070,6 +1206,15 @@ export default function RequestWizard() {
                         {missing}
                       </span>
                     )}
+                  </button>
+                  <button
+                    aria-label={`Quitar ${line.name || 'producto'}`}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
+                    onClick={() => removeLine(line.id)}
+                    title="Quitar producto"
+                    type="button"
+                  >
+                    <Icon className="h-4 w-4" name="trash" />
                   </button>
                 </li>
               );
@@ -1127,7 +1272,11 @@ export default function RequestWizard() {
             </p>
           ) : null}
           <div className="mt-5">{content}</div>
-          <div className="sticky bottom-0 z-20 -mx-3 mt-5 border-t border-slate-200 bg-[#f4f6fb]/95 px-3 py-3 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0">
+          <div
+            className={`sticky bottom-0 z-20 -mx-3 mt-5 border-t border-slate-200 bg-[#f4f6fb]/95 px-3 py-3 backdrop-blur lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 ${
+              step === 1 ? 'lg:hidden' : ''
+            }`}
+          >
             {actions}
           </div>
         </div>

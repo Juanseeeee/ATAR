@@ -147,7 +147,8 @@ function OptionTile({ label, selected, onClick, children }: { label: string; sel
 
 /**
  * Campo de texto con desplegable: muestra los valores estándar que coinciden
- * con lo escrito; se puede elegir uno o dejar el valor propio.
+ * con lo escrito; se puede elegir uno o dejar el valor propio. La lista arranca
+ * cerrada y se abre al tocar el campo o la flecha, al escribir o con ↓.
  */
 function ComboInput({
   value,
@@ -186,7 +187,7 @@ function ComboInput({
           setHighlight(0);
           setOpen(true);
         }}
-        onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
         onKeyDown={(event) => {
           if (event.key === 'ArrowDown') {
             event.preventDefault();
